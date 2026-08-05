@@ -1,0 +1,19 @@
+{
+  "files.associations": {
+    "*.vhd": "vhdl",
+    "*.vhdl": "vhdl",
+    "*.xdc": "tcl"
+  },
+  "editor.formatOnSave": false,
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": false,
+    "strings": true
+  },
+  "files.exclude": {
+    "**/work-obj*.cf": true
+  },
+  "search.exclude": {
+    "**/work-obj*.cf": true
+  }
+}

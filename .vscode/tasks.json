@@ -1,0 +1,71 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "GHDL: Analyze all VHDL",
+      "type": "shell",
+      "command": "ghdl",
+      "args": [
+        "-a",
+        "--std=08",
+        "${workspaceFolder}/**/*.vhd"
+      ],
+      "problemMatcher": ["$gcc"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "GHDL: Elaborate top entity",
+      "type": "shell",
+      "command": "ghdl",
+      "args": [
+        "-e",
+        "--std=08",
+        "${input:topEntity}"
+      ],
+      "problemMatcher": ["$gcc"],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "GHDL: Run testbench",
+      "type": "shell",
+      "command": "ghdl",
+      "args": [
+        "-r",
+        "--std=08",
+        "${input:topEntity}",
+        "--vcd=wave.vcd"
+      ],
+      "problemMatcher": [],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "topEntity",
+      "type": "promptString",
+      "description": "Top-level entity or testbench name",
+      "default": "tb_top"
+    }
+  ]
+}
