@@ -8,11 +8,11 @@ entity type_processor is
     data : in unsigned(63 downto 0);
     clk : in std_logic;
     rst : in std_logic;
-    frame : out unsigned(135 downto 0);
+    frame : out unsigned(199 downto 0);
     byte_count : in unsigned(6 downto 0);
-    mode : out unsigned(1 downto 0);
-    success : out unsigned;
-    frame_type_out : out unsigned(1 downto 0)
+    mode : out unsigned(2 downto 0);
+    success : out std_logic;
+    frame_type_out : out unsigned(2 downto 0)
     );
 
 end type_processor;
@@ -20,7 +20,7 @@ end type_processor;
 
 architecture rtl of type_processor is
 
-    signal frame_reg : unsigned(135 downto 0):= (others => '0');
+    signal frame_reg : unsigned(199 downto 0):= (others => '0');
     signal overflow_reg : unsigned(55 downto 0);
 
     signal byte_0_count : unsigned(6 downto 0);
@@ -35,20 +35,22 @@ architecture rtl of type_processor is
     signal current_offset : unsigned(2 downto 0);
     signal next_offset    : unsigned(2 downto 0);
 
-    signal frame_type_raw : unsigned(1 downto 0):= (others => '0');
-    signal frame_type     : unsigned(1 downto 0) := (others => '0');
+    signal frame_type_raw : unsigned(7 downto 0):= (others => '0');
+    signal frame_type     : unsigned(2 downto 0) := (others => '0');
 
-    signal success_signal : unsigned := (others => '0');
-    signal frame_size     : unsigned(5 downto 0);
+    signal success_signal : std_logic;
+    signal frame_size     : unsigned(6 downto 0);
 
-    constant ADD      : unsigned(1 downto 0) := "00";
-    constant CANCEL   : unsigned(1 downto 0) := "01";
-    constant REPLACE  : unsigned(1 downto 0) := "10";
-    constant EXECUTED : unsigned(1 downto 0) := "11";
-    constant ADD_SIZE : unsigned(6 downto 0):= "0100011";
-    constant CANCEl_SIZE : unsigned(6 downto 0):= "0100011";
+    constant ADD      : unsigned(2 downto 0) := "000";
+    constant CANCEL   : unsigned(2 downto 0) := "001";
+    constant REPLACE  : unsigned(2 downto 0) := "010";
+    constant EXECUTED : unsigned(2 downto 0) := "011";
+    constant DELETE   : unsigned(2 downto 0) := "100";
+    constant ADD_SIZE : unsigned(6 downto 0):= "0100100";
+    constant CANCEL_SIZE : unsigned(6 downto 0):= "0010111";
     constant REPALCE_SIZE : unsigned(6 downto 0):= "0100011";
-    constant EXECUTED_SIZE : unsigned(6 downto 0):= "0100011";
+    constant EXECUTED_SIZE : unsigned(6 downto 0):= "0011111";
+    constant DELETE_SIZE : unsigned(6 downto 0):= "0010011";
 
 begin
 
@@ -72,36 +74,36 @@ process(clk)
             --type byte identifier + reset signal for counter    
                 if byte_0_count = frame_size + 1 then 
                     frame_type_raw <= data(7 downto 0);
-                    success_signal <= "1";
+                    success_signal <= '1';
 
                 elsif byte_1_count = frame_size + 1 then 
                     frame_type_raw <= data(15 downto 8);
-                    success_signal <= "1";
+                    success_signal <= '1';
 
                 elsif byte_2_count = frame_size + 1 then 
                     frame_type_raw <= data(23 downto 16);
-                    success_signal <= "1";
+                    success_signal <= '1';
 
                 elsif byte_3_count = frame_size + 1 then 
                     frame_type_raw <= data(31 downto 24);
-                    success_signal <= "1";
+                    success_signal <= '1';
 
                 elsif byte_4_count = frame_size + 1 then
                     frame_type_raw <= data(39 downto 32);
-                    success_signal <= "1"; 
+                    success_signal <= '1'; 
                     
 
                 elsif byte_5_count = frame_size + 1 then 
                     frame_type_raw <= data(47 downto 40);
-                    success_signal <= "1";
+                    success_signal <= '1';
 
                 elsif byte_6_count = frame_size + 1 then 
                     frame_type_raw <= data(55 downto 48);
-                    success_signal <= "1";
+                    success_signal <= '1';
 
                 elsif byte_7_count = frame_size + 1 then 
                     frame_type_raw <= data(63 downto 56);
-                    success_signal <= "1";
+                    success_signal <= '1';
                 
                 end if;
                 --frame building logic
@@ -110,879 +112,636 @@ process(clk)
 
                         case to_integer(byte_0_count) is
                             when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
                             when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
                             when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
                             when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
                             when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
                             when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
                             when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
                             when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
                             when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
                             when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
                             when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
                             when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
                             when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
                             when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
                             when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
                             when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
                             when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when others => null;
                         end case;
 
                         case to_integer(byte_1_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when 11 => frame_reg(135 downto 128) <= data(15 downto 8);
+                            when 12 => frame_reg(127 downto 120) <= data(15 downto 8);
+                            when 13 => frame_reg(119 downto 112) <= data(15 downto 8);
+                            when 14 => frame_reg(111 downto 104) <= data(15 downto 8);
+                            when 15 => frame_reg(103 downto 96) <= data(15 downto 8);
+                            when 16 => frame_reg(95 downto 88) <= data(15 downto 8);
+                            when 17 => frame_reg(87 downto 80) <= data(15 downto 8);
+                            when 18 => frame_reg(79 downto 72) <= data(15 downto 8);
+                            when 19 => frame_reg(71 downto 64) <= data(15 downto 8);
+                            when 20 => frame_reg(63 downto 56) <= data(15 downto 8);
+                            when 21 => frame_reg(55 downto 48) <= data(15 downto 8);
+                            when 22 => frame_reg(47 downto 40) <= data(15 downto 8);
+                            when 23 => frame_reg(39 downto 32) <= data(15 downto 8);
+                            when 32 => frame_reg(31 downto 24) <= data(15 downto 8);
+                            when 33 => frame_reg(23 downto 16) <= data(15 downto 8);
+                            when 34 => frame_reg(15 downto 8) <= data(15 downto 8);
+                            when 35 => frame_reg(7 downto 0) <= data(15 downto 8);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_2_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when 11 => frame_reg(135 downto 128) <= data(23 downto 16);
+                            when 12 => frame_reg(127 downto 120) <= data(23 downto 16);
+                            when 13 => frame_reg(119 downto 112) <= data(23 downto 16);
+                            when 14 => frame_reg(111 downto 104) <= data(23 downto 16);
+                            when 15 => frame_reg(103 downto 96) <= data(23 downto 16);
+                            when 16 => frame_reg(95 downto 88) <= data(23 downto 16);
+                            when 17 => frame_reg(87 downto 80) <= data(23 downto 16);
+                            when 18 => frame_reg(79 downto 72) <= data(23 downto 16);
+                            when 19 => frame_reg(71 downto 64) <= data(23 downto 16);
+                            when 20 => frame_reg(63 downto 56) <= data(23 downto 16);
+                            when 21 => frame_reg(55 downto 48) <= data(23 downto 16);
+                            when 22 => frame_reg(47 downto 40) <= data(23 downto 16);
+                            when 23 => frame_reg(39 downto 32) <= data(23 downto 16);
+                            when 32 => frame_reg(31 downto 24) <= data(23 downto 16);
+                            when 33 => frame_reg(23 downto 16) <= data(23 downto 16);
+                            when 34 => frame_reg(15 downto 8) <= data(23 downto 16);
+                            when 35 => frame_reg(7 downto 0) <= data(23 downto 16);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_3_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when 11 => frame_reg(135 downto 128) <= data(31 downto 24);
+                            when 12 => frame_reg(127 downto 120) <= data(31 downto 24);
+                            when 13 => frame_reg(119 downto 112) <= data(31 downto 24);
+                            when 14 => frame_reg(111 downto 104) <= data(31 downto 24);
+                            when 15 => frame_reg(103 downto 96) <= data(31 downto 24);
+                            when 16 => frame_reg(95 downto 88) <= data(31 downto 24);
+                            when 17 => frame_reg(87 downto 80) <= data(31 downto 24);
+                            when 18 => frame_reg(79 downto 72) <= data(31 downto 24);
+                            when 19 => frame_reg(71 downto 64) <= data(31 downto 24);
+                            when 20 => frame_reg(63 downto 56) <= data(31 downto 24);
+                            when 21 => frame_reg(55 downto 48) <= data(31 downto 24);
+                            when 22 => frame_reg(47 downto 40) <= data(31 downto 24);
+                            when 23 => frame_reg(39 downto 32) <= data(31 downto 24);
+                            when 32 => frame_reg(31 downto 24) <= data(31 downto 24);
+                            when 33 => frame_reg(23 downto 16) <= data(31 downto 24);
+                            when 34 => frame_reg(15 downto 8) <= data(31 downto 24);
+                            when 35 => frame_reg(7 downto 0) <= data(31 downto 24);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_4_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when 11 => frame_reg(135 downto 128) <= data(39 downto 32);
+                            when 12 => frame_reg(127 downto 120) <= data(39 downto 32);
+                            when 13 => frame_reg(119 downto 112) <= data(39 downto 32);
+                            when 14 => frame_reg(111 downto 104) <= data(39 downto 32);
+                            when 15 => frame_reg(103 downto 96) <= data(39 downto 32);
+                            when 16 => frame_reg(95 downto 88) <= data(39 downto 32);
+                            when 17 => frame_reg(87 downto 80) <= data(39 downto 32);
+                            when 18 => frame_reg(79 downto 72) <= data(39 downto 32);
+                            when 19 => frame_reg(71 downto 64) <= data(39 downto 32);
+                            when 20 => frame_reg(63 downto 56) <= data(39 downto 32);
+                            when 21 => frame_reg(55 downto 48) <= data(39 downto 32);
+                            when 22 => frame_reg(47 downto 40) <= data(39 downto 32);
+                            when 23 => frame_reg(39 downto 32) <= data(39 downto 32);
+                            when 32 => frame_reg(31 downto 24) <= data(39 downto 32);
+                            when 33 => frame_reg(23 downto 16) <= data(39 downto 32);
+                            when 34 => frame_reg(15 downto 8) <= data(39 downto 32);
+                            when 35 => frame_reg(7 downto 0) <= data(39 downto 32);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_5_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when 11 => frame_reg(135 downto 128) <= data(47 downto 40);
+                            when 12 => frame_reg(127 downto 120) <= data(47 downto 40);
+                            when 13 => frame_reg(119 downto 112) <= data(47 downto 40);
+                            when 14 => frame_reg(111 downto 104) <= data(47 downto 40);
+                            when 15 => frame_reg(103 downto 96) <= data(47 downto 40);
+                            when 16 => frame_reg(95 downto 88) <= data(47 downto 40);
+                            when 17 => frame_reg(87 downto 80) <= data(47 downto 40);
+                            when 18 => frame_reg(79 downto 72) <= data(47 downto 40);
+                            when 19 => frame_reg(71 downto 64) <= data(47 downto 40);
+                            when 20 => frame_reg(63 downto 56) <= data(47 downto 40);
+                            when 21 => frame_reg(55 downto 48) <= data(47 downto 40);
+                            when 22 => frame_reg(47 downto 40) <= data(47 downto 40);
+                            when 23 => frame_reg(39 downto 32) <= data(47 downto 40);
+                            when 32 => frame_reg(31 downto 24) <= data(47 downto 40);
+                            when 33 => frame_reg(23 downto 16) <= data(47 downto 40);
+                            when 34 => frame_reg(15 downto 8) <= data(47 downto 40);
+                            when 35 => frame_reg(7 downto 0) <= data(47 downto 40);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_6_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
-                            when others =>
-                                null;
+                            when 11 => frame_reg(135 downto 128) <= data(55 downto 48);
+                            when 12 => frame_reg(127 downto 120) <= data(55 downto 48);
+                            when 13 => frame_reg(119 downto 112) <= data(55 downto 48);
+                            when 14 => frame_reg(111 downto 104) <= data(55 downto 48);
+                            when 15 => frame_reg(103 downto 96) <= data(55 downto 48);
+                            when 16 => frame_reg(95 downto 88) <= data(55 downto 48);
+                            when 17 => frame_reg(87 downto 80) <= data(55 downto 48);
+                            when 18 => frame_reg(79 downto 72) <= data(55 downto 48);
+                            when 19 => frame_reg(71 downto 64) <= data(55 downto 48);
+                            when 20 => frame_reg(63 downto 56) <= data(55 downto 48);
+                            when 21 => frame_reg(55 downto 48) <= data(55 downto 48);
+                            when 22 => frame_reg(47 downto 40) <= data(55 downto 48);
+                            when 23 => frame_reg(39 downto 32) <= data(55 downto 48);
+                            when 32 => frame_reg(31 downto 24) <= data(55 downto 48);
+                            when 33 => frame_reg(23 downto 16) <= data(55 downto 48);
+                            when 34 => frame_reg(15 downto 8) <= data(55 downto 48);
+                            when 35 => frame_reg(7 downto 0) <= data(55 downto 48);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_7_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
-                            
+                            when 11 => frame_reg(135 downto 128) <= data(63 downto 56);
+                            when 12 => frame_reg(127 downto 120) <= data(63 downto 56);
+                            when 13 => frame_reg(119 downto 112) <= data(63 downto 56);
+                            when 14 => frame_reg(111 downto 104) <= data(63 downto 56);
+                            when 15 => frame_reg(103 downto 96) <= data(63 downto 56);
+                            when 16 => frame_reg(95 downto 88) <= data(63 downto 56);
+                            when 17 => frame_reg(87 downto 80) <= data(63 downto 56);
+                            when 18 => frame_reg(79 downto 72) <= data(63 downto 56);
+                            when 19 => frame_reg(71 downto 64) <= data(63 downto 56);
+                            when 20 => frame_reg(63 downto 56) <= data(63 downto 56);
+                            when 21 => frame_reg(55 downto 48) <= data(63 downto 56);
+                            when 22 => frame_reg(47 downto 40) <= data(63 downto 56);
+                            when 23 => frame_reg(39 downto 32) <= data(63 downto 56);
+                            when 32 => frame_reg(31 downto 24) <= data(63 downto 56);
+                            when 33 => frame_reg(23 downto 16) <= data(63 downto 56);
+                            when 34 => frame_reg(15 downto 8) <= data(63 downto 56);
+                            when 35 => frame_reg(7 downto 0) <= data(63 downto 56);
                             when others => null;
-
                         end case;
 
-                    when CANCEL or EXECUTED =>
+                    when CANCEL | EXECUTED =>
 
-                        case to_integer(byte_0_count) is 
-
+                        case to_integer(byte_0_count) is
                             when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
                             when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
                             when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
                             when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
                             when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
                             when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
                             when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
                             when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-                            
+                            when 19 => frame_reg(63 downto 56) <= data(7 downto 0);
+                            when 20 => frame_reg(55 downto 48) <= data(7 downto 0);
+                            when 21 => frame_reg(47 downto 40) <= data(7 downto 0);
+                            when 22 => frame_reg(39 downto 32) <= data(7 downto 0);
                             when others => null;
-
                         end case;
 
-                        case to_integer(byte_1_count) is 
-
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
+                        case to_integer(byte_1_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(15 downto 8);
+                            when 12 => frame_reg(127 downto 120) <= data(15 downto 8);
+                            when 13 => frame_reg(119 downto 112) <= data(15 downto 8);
+                            when 14 => frame_reg(111 downto 104) <= data(15 downto 8);
+                            when 15 => frame_reg(103 downto 96) <= data(15 downto 8);
+                            when 16 => frame_reg(95 downto 88) <= data(15 downto 8);
+                            when 17 => frame_reg(87 downto 80) <= data(15 downto 8);
+                            when 18 => frame_reg(79 downto 72) <= data(15 downto 8);
+                            when 19 => frame_reg(63 downto 56) <= data(15 downto 8);
+                            when 20 => frame_reg(55 downto 48) <= data(15 downto 8);
+                            when 21 => frame_reg(47 downto 40) <= data(15 downto 8);
+                            when 22 => frame_reg(39 downto 32) <= data(15 downto 8);
                             when others => null;
-
-                        end case;
-                        
-                        case to_integer(byte_2_count) is 
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when others => null;
-
                         end case;
 
-                        case to_integer(byte_3_count) is 
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
+                        case to_integer(byte_2_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(23 downto 16);
+                            when 12 => frame_reg(127 downto 120) <= data(23 downto 16);
+                            when 13 => frame_reg(119 downto 112) <= data(23 downto 16);
+                            when 14 => frame_reg(111 downto 104) <= data(23 downto 16);
+                            when 15 => frame_reg(103 downto 96) <= data(23 downto 16);
+                            when 16 => frame_reg(95 downto 88) <= data(23 downto 16);
+                            when 17 => frame_reg(87 downto 80) <= data(23 downto 16);
+                            when 18 => frame_reg(79 downto 72) <= data(23 downto 16);
+                            when 19 => frame_reg(63 downto 56) <= data(23 downto 16);
+                            when 20 => frame_reg(55 downto 48) <= data(23 downto 16);
+                            when 21 => frame_reg(47 downto 40) <= data(23 downto 16);
+                            when 22 => frame_reg(39 downto 32) <= data(23 downto 16);
                             when others => null;
-
                         end case;
 
-                        case to_integer(byte_4_count) is 
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
+                        case to_integer(byte_3_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(31 downto 24);
+                            when 12 => frame_reg(127 downto 120) <= data(31 downto 24);
+                            when 13 => frame_reg(119 downto 112) <= data(31 downto 24);
+                            when 14 => frame_reg(111 downto 104) <= data(31 downto 24);
+                            when 15 => frame_reg(103 downto 96) <= data(31 downto 24);
+                            when 16 => frame_reg(95 downto 88) <= data(31 downto 24);
+                            when 17 => frame_reg(87 downto 80) <= data(31 downto 24);
+                            when 18 => frame_reg(79 downto 72) <= data(31 downto 24);
+                            when 19 => frame_reg(63 downto 56) <= data(31 downto 24);
+                            when 20 => frame_reg(55 downto 48) <= data(31 downto 24);
+                            when 21 => frame_reg(47 downto 40) <= data(31 downto 24);
+                            when 22 => frame_reg(39 downto 32) <= data(31 downto 24);
                             when others => null;
-
                         end case;
 
-                        case to_integer(byte_5_count) is 
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
+                        case to_integer(byte_4_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(39 downto 32);
+                            when 12 => frame_reg(127 downto 120) <= data(39 downto 32);
+                            when 13 => frame_reg(119 downto 112) <= data(39 downto 32);
+                            when 14 => frame_reg(111 downto 104) <= data(39 downto 32);
+                            when 15 => frame_reg(103 downto 96) <= data(39 downto 32);
+                            when 16 => frame_reg(95 downto 88) <= data(39 downto 32);
+                            when 17 => frame_reg(87 downto 80) <= data(39 downto 32);
+                            when 18 => frame_reg(79 downto 72) <= data(39 downto 32);
+                            when 19 => frame_reg(63 downto 56) <= data(39 downto 32);
+                            when 20 => frame_reg(55 downto 48) <= data(39 downto 32);
+                            when 21 => frame_reg(47 downto 40) <= data(39 downto 32);
+                            when 22 => frame_reg(39 downto 32) <= data(39 downto 32);
                             when others => null;
-
                         end case;
 
-                        case to_integer(byte_6_count) is 
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
+                        case to_integer(byte_5_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(47 downto 40);
+                            when 12 => frame_reg(127 downto 120) <= data(47 downto 40);
+                            when 13 => frame_reg(119 downto 112) <= data(47 downto 40);
+                            when 14 => frame_reg(111 downto 104) <= data(47 downto 40);
+                            when 15 => frame_reg(103 downto 96) <= data(47 downto 40);
+                            when 16 => frame_reg(95 downto 88) <= data(47 downto 40);
+                            when 17 => frame_reg(87 downto 80) <= data(47 downto 40);
+                            when 18 => frame_reg(79 downto 72) <= data(47 downto 40);
+                            when 19 => frame_reg(63 downto 56) <= data(47 downto 40);
+                            when 20 => frame_reg(55 downto 48) <= data(47 downto 40);
+                            when 21 => frame_reg(47 downto 40) <= data(47 downto 40);
+                            when 22 => frame_reg(39 downto 32) <= data(47 downto 40);
                             when others => null;
-
                         end case;
 
-                        case to_integer(byte_7_count) is 
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
+                        case to_integer(byte_6_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(55 downto 48);
+                            when 12 => frame_reg(127 downto 120) <= data(55 downto 48);
+                            when 13 => frame_reg(119 downto 112) <= data(55 downto 48);
+                            when 14 => frame_reg(111 downto 104) <= data(55 downto 48);
+                            when 15 => frame_reg(103 downto 96) <= data(55 downto 48);
+                            when 16 => frame_reg(95 downto 88) <= data(55 downto 48);
+                            when 17 => frame_reg(87 downto 80) <= data(55 downto 48);
+                            when 18 => frame_reg(79 downto 72) <= data(55 downto 48);
+                            when 19 => frame_reg(63 downto 56) <= data(55 downto 48);
+                            when 20 => frame_reg(55 downto 48) <= data(55 downto 48);
+                            when 21 => frame_reg(47 downto 40) <= data(55 downto 48);
+                            when 22 => frame_reg(39 downto 32) <= data(55 downto 48);
                             when others => null;
-
                         end case;
-                        
-                    
+
+                        case to_integer(byte_7_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(63 downto 56);
+                            when 12 => frame_reg(127 downto 120) <= data(63 downto 56);
+                            when 13 => frame_reg(119 downto 112) <= data(63 downto 56);
+                            when 14 => frame_reg(111 downto 104) <= data(63 downto 56);
+                            when 15 => frame_reg(103 downto 96) <= data(63 downto 56);
+                            when 16 => frame_reg(95 downto 88) <= data(63 downto 56);
+                            when 17 => frame_reg(87 downto 80) <= data(63 downto 56);
+                            when 18 => frame_reg(79 downto 72) <= data(63 downto 56);
+                            when 19 => frame_reg(63 downto 56) <= data(63 downto 56);
+                            when 20 => frame_reg(55 downto 48) <= data(63 downto 56);
+                            when 21 => frame_reg(47 downto 40) <= data(63 downto 56);
+                            when 22 => frame_reg(39 downto 32) <= data(63 downto 56);
+                            when others => null;
+                        end case;
 
                     when REPLACE =>
 
                         case to_integer(byte_0_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(7 downto 0);
+                            when 12 => frame_reg(191 downto 184) <= data(7 downto 0);
+                            when 13 => frame_reg(183 downto 176) <= data(7 downto 0);
+                            when 14 => frame_reg(175 downto 168) <= data(7 downto 0);
+                            when 15 => frame_reg(167 downto 160) <= data(7 downto 0);
+                            when 16 => frame_reg(159 downto 152) <= data(7 downto 0);
+                            when 17 => frame_reg(151 downto 144) <= data(7 downto 0);
+                            when 18 => frame_reg(143 downto 136) <= data(7 downto 0);
+                            when 19 => frame_reg(135 downto 128) <= data(7 downto 0);
+                            when 20 => frame_reg(127 downto 120) <= data(7 downto 0);
+                            when 21 => frame_reg(119 downto 112) <= data(7 downto 0);
+                            when 22 => frame_reg(111 downto 104) <= data(7 downto 0);
+                            when 23 => frame_reg(103 downto 96) <= data(7 downto 0);
+                            when 24 => frame_reg(95 downto 88) <= data(7 downto 0);
+                            when 25 => frame_reg(87 downto 80) <= data(7 downto 0);
+                            when 26 => frame_reg(79 downto 72) <= data(7 downto 0);
+                            when 27 => frame_reg(63 downto 56) <= data(7 downto 0);
+                            when 28 => frame_reg(55 downto 48) <= data(7 downto 0);
+                            when 29 => frame_reg(47 downto 40) <= data(7 downto 0);
+                            when 30 => frame_reg(39 downto 32) <= data(7 downto 0);
+                            when 31 => frame_reg(31 downto 24) <= data(7 downto 0);
+                            when 32 => frame_reg(23 downto 16) <= data(7 downto 0);
+                            when 33 => frame_reg(15 downto 8) <= data(7 downto 0);
+                            when 34 => frame_reg(7 downto 0) <= data(7 downto 0);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_1_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(15 downto 8);
+                            when 12 => frame_reg(191 downto 184) <= data(15 downto 8);
+                            when 13 => frame_reg(183 downto 176) <= data(15 downto 8);
+                            when 14 => frame_reg(175 downto 168) <= data(15 downto 8);
+                            when 15 => frame_reg(167 downto 160) <= data(15 downto 8);
+                            when 16 => frame_reg(159 downto 152) <= data(15 downto 8);
+                            when 17 => frame_reg(151 downto 144) <= data(15 downto 8);
+                            when 18 => frame_reg(143 downto 136) <= data(15 downto 8);
+                            when 19 => frame_reg(135 downto 128) <= data(15 downto 8);
+                            when 20 => frame_reg(127 downto 120) <= data(15 downto 8);
+                            when 21 => frame_reg(119 downto 112) <= data(15 downto 8);
+                            when 22 => frame_reg(111 downto 104) <= data(15 downto 8);
+                            when 23 => frame_reg(103 downto 96) <= data(15 downto 8);
+                            when 24 => frame_reg(95 downto 88) <= data(15 downto 8);
+                            when 25 => frame_reg(87 downto 80) <= data(15 downto 8);
+                            when 26 => frame_reg(79 downto 72) <= data(15 downto 8);
+                            when 27 => frame_reg(63 downto 56) <= data(15 downto 8);
+                            when 28 => frame_reg(55 downto 48) <= data(15 downto 8);
+                            when 29 => frame_reg(47 downto 40) <= data(15 downto 8);
+                            when 30 => frame_reg(39 downto 32) <= data(15 downto 8);
+                            when 31 => frame_reg(31 downto 24) <= data(15 downto 8);
+                            when 32 => frame_reg(23 downto 16) <= data(15 downto 8);
+                            when 33 => frame_reg(15 downto 8) <= data(15 downto 8);
+                            when 34 => frame_reg(7 downto 0) <= data(15 downto 8);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_2_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(23 downto 16);
+                            when 12 => frame_reg(191 downto 184) <= data(23 downto 16);
+                            when 13 => frame_reg(183 downto 176) <= data(23 downto 16);
+                            when 14 => frame_reg(175 downto 168) <= data(23 downto 16);
+                            when 15 => frame_reg(167 downto 160) <= data(23 downto 16);
+                            when 16 => frame_reg(159 downto 152) <= data(23 downto 16);
+                            when 17 => frame_reg(151 downto 144) <= data(23 downto 16);
+                            when 18 => frame_reg(143 downto 136) <= data(23 downto 16);
+                            when 19 => frame_reg(135 downto 128) <= data(23 downto 16);
+                            when 20 => frame_reg(127 downto 120) <= data(23 downto 16);
+                            when 21 => frame_reg(119 downto 112) <= data(23 downto 16);
+                            when 22 => frame_reg(111 downto 104) <= data(23 downto 16);
+                            when 23 => frame_reg(103 downto 96) <= data(23 downto 16);
+                            when 24 => frame_reg(95 downto 88) <= data(23 downto 16);
+                            when 25 => frame_reg(87 downto 80) <= data(23 downto 16);
+                            when 26 => frame_reg(79 downto 72) <= data(23 downto 16);
+                            when 27 => frame_reg(63 downto 56) <= data(23 downto 16);
+                            when 28 => frame_reg(55 downto 48) <= data(23 downto 16);
+                            when 29 => frame_reg(47 downto 40) <= data(23 downto 16);
+                            when 30 => frame_reg(39 downto 32) <= data(23 downto 16);
+                            when 31 => frame_reg(31 downto 24) <= data(23 downto 16);
+                            when 32 => frame_reg(23 downto 16) <= data(23 downto 16);
+                            when 33 => frame_reg(15 downto 8) <= data(23 downto 16);
+                            when 34 => frame_reg(7 downto 0) <= data(23 downto 16);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_3_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(31 downto 24);
+                            when 12 => frame_reg(191 downto 184) <= data(31 downto 24);
+                            when 13 => frame_reg(183 downto 176) <= data(31 downto 24);
+                            when 14 => frame_reg(175 downto 168) <= data(31 downto 24);
+                            when 15 => frame_reg(167 downto 160) <= data(31 downto 24);
+                            when 16 => frame_reg(159 downto 152) <= data(31 downto 24);
+                            when 17 => frame_reg(151 downto 144) <= data(31 downto 24);
+                            when 18 => frame_reg(143 downto 136) <= data(31 downto 24);
+                            when 19 => frame_reg(135 downto 128) <= data(31 downto 24);
+                            when 20 => frame_reg(127 downto 120) <= data(31 downto 24);
+                            when 21 => frame_reg(119 downto 112) <= data(31 downto 24);
+                            when 22 => frame_reg(111 downto 104) <= data(31 downto 24);
+                            when 23 => frame_reg(103 downto 96) <= data(31 downto 24);
+                            when 24 => frame_reg(95 downto 88) <= data(31 downto 24);
+                            when 25 => frame_reg(87 downto 80) <= data(31 downto 24);
+                            when 26 => frame_reg(79 downto 72) <= data(31 downto 24);
+                            when 27 => frame_reg(63 downto 56) <= data(31 downto 24);
+                            when 28 => frame_reg(55 downto 48) <= data(31 downto 24);
+                            when 29 => frame_reg(47 downto 40) <= data(31 downto 24);
+                            when 30 => frame_reg(39 downto 32) <= data(31 downto 24);
+                            when 31 => frame_reg(31 downto 24) <= data(31 downto 24);
+                            when 32 => frame_reg(23 downto 16) <= data(31 downto 24);
+                            when 33 => frame_reg(15 downto 8) <= data(31 downto 24);
+                            when 34 => frame_reg(7 downto 0) <= data(31 downto 24);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_4_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(39 downto 32);
+                            when 12 => frame_reg(191 downto 184) <= data(39 downto 32);
+                            when 13 => frame_reg(183 downto 176) <= data(39 downto 32);
+                            when 14 => frame_reg(175 downto 168) <= data(39 downto 32);
+                            when 15 => frame_reg(167 downto 160) <= data(39 downto 32);
+                            when 16 => frame_reg(159 downto 152) <= data(39 downto 32);
+                            when 17 => frame_reg(151 downto 144) <= data(39 downto 32);
+                            when 18 => frame_reg(143 downto 136) <= data(39 downto 32);
+                            when 19 => frame_reg(135 downto 128) <= data(39 downto 32);
+                            when 20 => frame_reg(127 downto 120) <= data(39 downto 32);
+                            when 21 => frame_reg(119 downto 112) <= data(39 downto 32);
+                            when 22 => frame_reg(111 downto 104) <= data(39 downto 32);
+                            when 23 => frame_reg(103 downto 96) <= data(39 downto 32);
+                            when 24 => frame_reg(95 downto 88) <= data(39 downto 32);
+                            when 25 => frame_reg(87 downto 80) <= data(39 downto 32);
+                            when 26 => frame_reg(79 downto 72) <= data(39 downto 32);
+                            when 27 => frame_reg(63 downto 56) <= data(39 downto 32);
+                            when 28 => frame_reg(55 downto 48) <= data(39 downto 32);
+                            when 29 => frame_reg(47 downto 40) <= data(39 downto 32);
+                            when 30 => frame_reg(39 downto 32) <= data(39 downto 32);
+                            when 31 => frame_reg(31 downto 24) <= data(39 downto 32);
+                            when 32 => frame_reg(23 downto 16) <= data(39 downto 32);
+                            when 33 => frame_reg(15 downto 8) <= data(39 downto 32);
+                            when 34 => frame_reg(7 downto 0) <= data(39 downto 32);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_5_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(47 downto 40);
+                            when 12 => frame_reg(191 downto 184) <= data(47 downto 40);
+                            when 13 => frame_reg(183 downto 176) <= data(47 downto 40);
+                            when 14 => frame_reg(175 downto 168) <= data(47 downto 40);
+                            when 15 => frame_reg(167 downto 160) <= data(47 downto 40);
+                            when 16 => frame_reg(159 downto 152) <= data(47 downto 40);
+                            when 17 => frame_reg(151 downto 144) <= data(47 downto 40);
+                            when 18 => frame_reg(143 downto 136) <= data(47 downto 40);
+                            when 19 => frame_reg(135 downto 128) <= data(47 downto 40);
+                            when 20 => frame_reg(127 downto 120) <= data(47 downto 40);
+                            when 21 => frame_reg(119 downto 112) <= data(47 downto 40);
+                            when 22 => frame_reg(111 downto 104) <= data(47 downto 40);
+                            when 23 => frame_reg(103 downto 96) <= data(47 downto 40);
+                            when 24 => frame_reg(95 downto 88) <= data(47 downto 40);
+                            when 25 => frame_reg(87 downto 80) <= data(47 downto 40);
+                            when 26 => frame_reg(79 downto 72) <= data(47 downto 40);
+                            when 27 => frame_reg(63 downto 56) <= data(47 downto 40);
+                            when 28 => frame_reg(55 downto 48) <= data(47 downto 40);
+                            when 29 => frame_reg(47 downto 40) <= data(47 downto 40);
+                            when 30 => frame_reg(39 downto 32) <= data(47 downto 40);
+                            when 31 => frame_reg(31 downto 24) <= data(47 downto 40);
+                            when 32 => frame_reg(23 downto 16) <= data(47 downto 40);
+                            when 33 => frame_reg(15 downto 8) <= data(47 downto 40);
+                            when 34 => frame_reg(7 downto 0) <= data(47 downto 40);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_6_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-
-                            when others =>
-                                null;
+                            when 11 => frame_reg(199 downto 192) <= data(55 downto 48);
+                            when 12 => frame_reg(191 downto 184) <= data(55 downto 48);
+                            when 13 => frame_reg(183 downto 176) <= data(55 downto 48);
+                            when 14 => frame_reg(175 downto 168) <= data(55 downto 48);
+                            when 15 => frame_reg(167 downto 160) <= data(55 downto 48);
+                            when 16 => frame_reg(159 downto 152) <= data(55 downto 48);
+                            when 17 => frame_reg(151 downto 144) <= data(55 downto 48);
+                            when 18 => frame_reg(143 downto 136) <= data(55 downto 48);
+                            when 19 => frame_reg(135 downto 128) <= data(55 downto 48);
+                            when 20 => frame_reg(127 downto 120) <= data(55 downto 48);
+                            when 21 => frame_reg(119 downto 112) <= data(55 downto 48);
+                            when 22 => frame_reg(111 downto 104) <= data(55 downto 48);
+                            when 23 => frame_reg(103 downto 96) <= data(55 downto 48);
+                            when 24 => frame_reg(95 downto 88) <= data(55 downto 48);
+                            when 25 => frame_reg(87 downto 80) <= data(55 downto 48);
+                            when 26 => frame_reg(79 downto 72) <= data(55 downto 48);
+                            when 27 => frame_reg(63 downto 56) <= data(55 downto 48);
+                            when 28 => frame_reg(55 downto 48) <= data(55 downto 48);
+                            when 29 => frame_reg(47 downto 40) <= data(55 downto 48);
+                            when 30 => frame_reg(39 downto 32) <= data(55 downto 48);
+                            when 31 => frame_reg(31 downto 24) <= data(55 downto 48);
+                            when 32 => frame_reg(23 downto 16) <= data(55 downto 48);
+                            when 33 => frame_reg(15 downto 8) <= data(55 downto 48);
+                            when 34 => frame_reg(7 downto 0) <= data(55 downto 48);
+                            when others => null;
                         end case;
 
                         case to_integer(byte_7_count) is
-                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
-
-                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
-
-                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
-
-                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
-
-                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
-
-                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
-
-                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
-
-                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-
-                            when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-
-                            when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
-
-                            when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
-
-                            when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
-
-                            when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-
-                            when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
-
-                            when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
-
-                            when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
-                            
+                            when 11 => frame_reg(199 downto 192) <= data(63 downto 56);
+                            when 12 => frame_reg(191 downto 184) <= data(63 downto 56);
+                            when 13 => frame_reg(183 downto 176) <= data(63 downto 56);
+                            when 14 => frame_reg(175 downto 168) <= data(63 downto 56);
+                            when 15 => frame_reg(167 downto 160) <= data(63 downto 56);
+                            when 16 => frame_reg(159 downto 152) <= data(63 downto 56);
+                            when 17 => frame_reg(151 downto 144) <= data(63 downto 56);
+                            when 18 => frame_reg(143 downto 136) <= data(63 downto 56);
+                            when 19 => frame_reg(135 downto 128) <= data(63 downto 56);
+                            when 20 => frame_reg(127 downto 120) <= data(63 downto 56);
+                            when 21 => frame_reg(119 downto 112) <= data(63 downto 56);
+                            when 22 => frame_reg(111 downto 104) <= data(63 downto 56);
+                            when 23 => frame_reg(103 downto 96) <= data(63 downto 56);
+                            when 24 => frame_reg(95 downto 88) <= data(63 downto 56);
+                            when 25 => frame_reg(87 downto 80) <= data(63 downto 56);
+                            when 26 => frame_reg(79 downto 72) <= data(63 downto 56);
+                            when 27 => frame_reg(63 downto 56) <= data(63 downto 56);
+                            when 28 => frame_reg(55 downto 48) <= data(63 downto 56);
+                            when 29 => frame_reg(47 downto 40) <= data(63 downto 56);
+                            when 30 => frame_reg(39 downto 32) <= data(63 downto 56);
+                            when 31 => frame_reg(31 downto 24) <= data(63 downto 56);
+                            when 32 => frame_reg(23 downto 16) <= data(63 downto 56);
+                            when 33 => frame_reg(15 downto 8) <= data(63 downto 56);
+                            when 34 => frame_reg(7 downto 0) <= data(63 downto 56);
                             when others => null;
+                        end case;
 
+                    when DELETE =>
+
+                        case to_integer(byte_0_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
+                            when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
+                            when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
+                            when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
+                            when 15 => frame_reg(103 downto 96) <= data(7 downto 0);
+                            when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
+                            when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
+                            when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_1_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(15 downto 8);
+                            when 12 => frame_reg(127 downto 120) <= data(15 downto 8);
+                            when 13 => frame_reg(119 downto 112) <= data(15 downto 8);
+                            when 14 => frame_reg(111 downto 104) <= data(15 downto 8);
+                            when 15 => frame_reg(103 downto 96) <= data(15 downto 8);
+                            when 16 => frame_reg(95 downto 88) <= data(15 downto 8);
+                            when 17 => frame_reg(87 downto 80) <= data(15 downto 8);
+                            when 18 => frame_reg(79 downto 72) <= data(15 downto 8);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_2_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(23 downto 16);
+                            when 12 => frame_reg(127 downto 120) <= data(23 downto 16);
+                            when 13 => frame_reg(119 downto 112) <= data(23 downto 16);
+                            when 14 => frame_reg(111 downto 104) <= data(23 downto 16);
+                            when 15 => frame_reg(103 downto 96) <= data(23 downto 16);
+                            when 16 => frame_reg(95 downto 88) <= data(23 downto 16);
+                            when 17 => frame_reg(87 downto 80) <= data(23 downto 16);
+                            when 18 => frame_reg(79 downto 72) <= data(23 downto 16);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_3_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(31 downto 24);
+                            when 12 => frame_reg(127 downto 120) <= data(31 downto 24);
+                            when 13 => frame_reg(119 downto 112) <= data(31 downto 24);
+                            when 14 => frame_reg(111 downto 104) <= data(31 downto 24);
+                            when 15 => frame_reg(103 downto 96) <= data(31 downto 24);
+                            when 16 => frame_reg(95 downto 88) <= data(31 downto 24);
+                            when 17 => frame_reg(87 downto 80) <= data(31 downto 24);
+                            when 18 => frame_reg(79 downto 72) <= data(31 downto 24);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_4_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(39 downto 32);
+                            when 12 => frame_reg(127 downto 120) <= data(39 downto 32);
+                            when 13 => frame_reg(119 downto 112) <= data(39 downto 32);
+                            when 14 => frame_reg(111 downto 104) <= data(39 downto 32);
+                            when 15 => frame_reg(103 downto 96) <= data(39 downto 32);
+                            when 16 => frame_reg(95 downto 88) <= data(39 downto 32);
+                            when 17 => frame_reg(87 downto 80) <= data(39 downto 32);
+                            when 18 => frame_reg(79 downto 72) <= data(39 downto 32);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_5_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(47 downto 40);
+                            when 12 => frame_reg(127 downto 120) <= data(47 downto 40);
+                            when 13 => frame_reg(119 downto 112) <= data(47 downto 40);
+                            when 14 => frame_reg(111 downto 104) <= data(47 downto 40);
+                            when 15 => frame_reg(103 downto 96) <= data(47 downto 40);
+                            when 16 => frame_reg(95 downto 88) <= data(47 downto 40);
+                            when 17 => frame_reg(87 downto 80) <= data(47 downto 40);
+                            when 18 => frame_reg(79 downto 72) <= data(47 downto 40);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_6_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(55 downto 48);
+                            when 12 => frame_reg(127 downto 120) <= data(55 downto 48);
+                            when 13 => frame_reg(119 downto 112) <= data(55 downto 48);
+                            when 14 => frame_reg(111 downto 104) <= data(55 downto 48);
+                            when 15 => frame_reg(103 downto 96) <= data(55 downto 48);
+                            when 16 => frame_reg(95 downto 88) <= data(55 downto 48);
+                            when 17 => frame_reg(87 downto 80) <= data(55 downto 48);
+                            when 18 => frame_reg(79 downto 72) <= data(55 downto 48);
+                            when others => null;
+                        end case;
+
+                        case to_integer(byte_7_count) is
+                            when 11 => frame_reg(135 downto 128) <= data(63 downto 56);
+                            when 12 => frame_reg(127 downto 120) <= data(63 downto 56);
+                            when 13 => frame_reg(119 downto 112) <= data(63 downto 56);
+                            when 14 => frame_reg(111 downto 104) <= data(63 downto 56);
+                            when 15 => frame_reg(103 downto 96) <= data(63 downto 56);
+                            when 16 => frame_reg(95 downto 88) <= data(63 downto 56);
+                            when 17 => frame_reg(87 downto 80) <= data(63 downto 56);
+                            when 18 => frame_reg(79 downto 72) <= data(63 downto 56);
+                            when others => null;
                         end case;
 
                     when others =>
                         null;
                 end case;
-
                 --Next frame offset
                 case frame_type is 
                         when ADD => 
                             current_offset <= current_offset + 4;
-                        when CANCEL or EXECUTED => 
+                        when CANCEL | EXECUTED => 
                             current_offset <= current_offset + 7;
-                        when REPLACE => 
+                        when REPLACE | DELETE => 
                             current_offset <= current_offset + 3;
                         when others => 
                             null;
@@ -1005,6 +764,8 @@ process(clk)
 
             when x"45" => frame_type <= EXECUTED;
 
+            when x"44" => frame_type <= DELETE;
+
             when others => frame_type <= frame_type;
         end case;
         
@@ -1017,9 +778,11 @@ process(clk)
 
             when CANCEL => frame_size <= CANCEL_SIZE;
 
-            when REPLACE => frame_size <= CANCEL_SIZE;
+            when REPLACE => frame_size <= REPALCE_SIZE;
 
             when EXECUTED => frame_size <= EXECUTED_SIZE;
+
+            when DELETE => frame_size <= DELETE_SIZE;
 
         end case;
     end process;
