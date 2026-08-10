@@ -32,12 +32,12 @@ architecture rtl of type_processor is
     signal byte_6_count : unsigned(6 downto 0);
     signal byte_7_count : unsigned(6 downto 0);
 
-    signal current_offset : unsigned(2 downto 0);
+    signal offset : unsigned(2 downto 0):= (others => '0');
 
     signal frame_type_raw : unsigned(7 downto 0):= (others => '0');
     signal frame_type     : unsigned(2 downto 0) := (others => '0');
 
-    signal success_signal : std_logic;
+    signal success_signal : std_logic ;
     signal frame_size     : unsigned(6 downto 0);
 
     constant ADD      : unsigned(2 downto 0) := "000";
@@ -68,6 +68,8 @@ process(clk)
         if rising_edge(clk) then 
             if rst = '1' then 
                 frame_reg <= (others => '0');
+                success_signal <= '0';  -- Add this
+                offset <= (others => '0'); 
 
             else
             --type byte identifier + reset signal for counter    
@@ -737,11 +739,11 @@ process(clk)
                 --Next frame offset
                 case frame_type is 
                         when ADD => 
-                            current_offset <= current_offset + 4;
+                            offset <= offset + 4;
                         when CANCEL | EXECUTED => 
-                            current_offset <= current_offset + 7;
+                            offset <= offset + 7;
                         when REPLACE | DELETE => 
-                            current_offset <= current_offset + 3;
+                            offset <= offset + 3;
                         when others => 
                             null;
                 end case;
@@ -790,6 +792,6 @@ process(clk)
     frame <= frame_reg;
     success <= success_signal;
     frame_type_out <= frame_type;
-    offset_out <= current_offset;
+    offset_out <= offset;
 
 end architecture;   
