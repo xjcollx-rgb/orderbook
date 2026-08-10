@@ -38,7 +38,7 @@ architecture rtl of type_processor is
     signal frame_type     : unsigned(2 downto 0) := (others => '0');
 
     signal success_signal : std_logic ;
-    signal frame_size     : unsigned(6 downto 0);
+    signal frame_size     : unsigned(6 downto 0):= (others => '0');
 
     constant ADD      : unsigned(2 downto 0) := "000";
     constant CANCEL   : unsigned(2 downto 0) := "001";
@@ -72,39 +72,274 @@ process(clk)
                 offset <= (others => '0'); 
 
             else
+            -- should keep success signal high for one cycle only;
+                success_signal <= '0';
+
             --type byte identifier + reset signal for counter    
                 if byte_0_count = frame_size then 
                     frame_type_raw <= data(7 downto 0);
+
                     success_signal <= '1';
+                 
+                        case data(7 downto 0) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
 
                 elsif byte_1_count = frame_size then 
                     frame_type_raw <= data(15 downto 8);
                     success_signal <= '1';
 
+                        case data(15 downto 8) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
+
                 elsif byte_2_count = frame_size then 
                     frame_type_raw <= data(23 downto 16);
                     success_signal <= '1';
+
+                        case data(23 downto 16) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
 
                 elsif byte_3_count = frame_size then 
                     frame_type_raw <= data(31 downto 24);
                     success_signal <= '1';
 
+                        case data(31 downto 24) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
+
                 elsif byte_4_count = frame_size then
                     frame_type_raw <= data(39 downto 32);
                     success_signal <= '1'; 
                     
+                        case data(39 downto 32) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
 
                 elsif byte_5_count = frame_size then 
                     frame_type_raw <= data(47 downto 40);
                     success_signal <= '1';
 
+                        case data(47 downto 40) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
+
                 elsif byte_6_count = frame_size then 
                     frame_type_raw <= data(55 downto 48);
                     success_signal <= '1';
 
+                        case data(55 downto 48) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
+
                 elsif byte_7_count = frame_size then 
                     frame_type_raw <= data(63 downto 56);
                     success_signal <= '1';
+
+                        case data(63 downto 56) is
+                            when x"41" => 
+                                offset <= offset + 4;
+                                frame_type <= ADD;
+                                frame_size <= ADD_SIZE;   -- ADD
+
+                            when x"58" => 
+                                offset <= offset + 7;
+                                frame_type <= CANCEL;
+                                frame_size <= CANCEL_SIZE;   -- CANCEL
+
+                            when x"55" => 
+                                offset <= offset + 3;
+                                frame_type <= REPLACE;
+                                frame_size <= REPALCE_SIZE;   -- REPLACE
+
+                            when x"45" => 
+                                offset <= offset + 7;
+                                frame_type <= EXECUTED;
+                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+
+                            when x"44" => 
+                                offset <= offset + 3;
+                                frame_type <= DELETE;
+                                frame_size <= DELETE_SIZE;   -- DELETE
+
+                            when others => null;
+                        end case;
                 
                 end if;
                 --frame building logic
@@ -736,58 +971,12 @@ process(clk)
                     when others =>
                         null;
                 end case;
-                --Next frame offset
-                case frame_type is 
-                        when ADD => 
-                            offset <= offset + 4;
-                        when CANCEL | EXECUTED => 
-                            offset <= offset + 7;
-                        when REPLACE | DELETE => 
-                            offset <= offset + 3;
-                        when others => 
-                            null;
-                end case;
 
             end if;
 
         end if;
 
-    end process;
-
-    process(frame_type_raw) 
-    begin
-        case frame_type_raw is
-            when x"41" => frame_type <= ADD;
-            
-            when x"58" => frame_type <= CANCEL;
-
-            when x"55" => frame_type <= REPLACE;
-
-            when x"45" => frame_type <= EXECUTED;
-
-            when x"44" => frame_type <= DELETE;
-
-            when others => frame_type <= frame_type;
-        end case;
-        
-    end process;
-
-    process (frame_type)
-    begin 
-        case frame_type is 
-            when ADD => frame_size <= ADD_SIZE;
-
-            when CANCEL => frame_size <= CANCEL_SIZE;
-
-            when REPLACE => frame_size <= REPALCE_SIZE;
-
-            when EXECUTED => frame_size <= EXECUTED_SIZE;
-
-            when DELETE => frame_size <= DELETE_SIZE;
-
-        end case;
-    end process;
-            
+    end process;           
 
     frame <= frame_reg;
     success <= success_signal;
