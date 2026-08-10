@@ -10,9 +10,9 @@ entity type_processor is
     rst : in std_logic;
     frame : out unsigned(199 downto 0);
     byte_count : in unsigned(6 downto 0);
-    mode : out unsigned(2 downto 0);
     success : out std_logic;
-    frame_type_out : out unsigned(2 downto 0)
+    frame_type_out : out unsigned(2 downto 0);
+    offset_out : out unsigned(2 downto 0)
     );
 
 end type_processor;
@@ -33,7 +33,6 @@ architecture rtl of type_processor is
     signal byte_7_count : unsigned(6 downto 0);
 
     signal current_offset : unsigned(2 downto 0);
-    signal next_offset    : unsigned(2 downto 0);
 
     signal frame_type_raw : unsigned(7 downto 0):= (others => '0');
     signal frame_type     : unsigned(2 downto 0) := (others => '0');
@@ -72,36 +71,36 @@ process(clk)
 
             else
             --type byte identifier + reset signal for counter    
-                if byte_0_count = frame_size + 1 then 
+                if byte_0_count = frame_size then 
                     frame_type_raw <= data(7 downto 0);
                     success_signal <= '1';
 
-                elsif byte_1_count = frame_size + 1 then 
+                elsif byte_1_count = frame_size then 
                     frame_type_raw <= data(15 downto 8);
                     success_signal <= '1';
 
-                elsif byte_2_count = frame_size + 1 then 
+                elsif byte_2_count = frame_size then 
                     frame_type_raw <= data(23 downto 16);
                     success_signal <= '1';
 
-                elsif byte_3_count = frame_size + 1 then 
+                elsif byte_3_count = frame_size then 
                     frame_type_raw <= data(31 downto 24);
                     success_signal <= '1';
 
-                elsif byte_4_count = frame_size + 1 then
+                elsif byte_4_count = frame_size then
                     frame_type_raw <= data(39 downto 32);
                     success_signal <= '1'; 
                     
 
-                elsif byte_5_count = frame_size + 1 then 
+                elsif byte_5_count = frame_size then 
                     frame_type_raw <= data(47 downto 40);
                     success_signal <= '1';
 
-                elsif byte_6_count = frame_size + 1 then 
+                elsif byte_6_count = frame_size then 
                     frame_type_raw <= data(55 downto 48);
                     success_signal <= '1';
 
-                elsif byte_7_count = frame_size + 1 then 
+                elsif byte_7_count = frame_size then 
                     frame_type_raw <= data(63 downto 56);
                     success_signal <= '1';
                 
@@ -789,8 +788,8 @@ process(clk)
             
 
     frame <= frame_reg;
-    mode <= frame_type;
     success <= success_signal;
     frame_type_out <= frame_type;
+    offset_out <= current_offset;
 
 end architecture;   
