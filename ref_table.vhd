@@ -107,7 +107,7 @@ begin
                                 state <= IDLE;
 
                             when DELETE =>
-                                valid_t(address) <= '0';
+                                valid(to_integer(address)) <= '0';
                                 state <= IDLE;
                         end case; 
 
