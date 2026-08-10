@@ -6,6 +6,7 @@ entity byte_count is
     port(   
         clk : in  std_logic;
         rst : in std_logic;
+        offset : in unsigned(2 downto 0);
         byte_count : out unsigned(6 downto 0)    
 
     );
@@ -15,6 +16,7 @@ end byte_count;
 architecture rtl of byte_count is
 
     signal count_reg : unsigned(6 downto 0):=(others => '0');
+    
 begin 
     process(clk)
 
@@ -26,7 +28,7 @@ begin
 
                     if count_reg >= 32 then 
                         count_reg <= (others => '0');
-                        
+
                     else 
                         count_reg <= count_reg + 8;
 
@@ -35,7 +37,7 @@ begin
             end if;
         end process;
 
-        byte_count <= count_reg;
+        byte_count <= count_reg + resize(offset, count_reg'length);
 
 end rtl;
 
