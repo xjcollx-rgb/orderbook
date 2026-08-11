@@ -34,7 +34,6 @@ architecture rtl of type_processor is
 
     signal offset : unsigned(2 downto 0):= (others => '0');
 
-    signal frame_type_raw : unsigned(7 downto 0):= (others => '0');
     signal frame_type     : unsigned(2 downto 0) := (others => '0');
 
     signal success_signal : std_logic ;
@@ -51,6 +50,10 @@ architecture rtl of type_processor is
     constant EXECUTED_SIZE : unsigned(6 downto 0):= "0011111";
     constant DELETE_SIZE : unsigned(6 downto 0):= "0010011";
 
+    signal debug_type_v : unsigned(2 downto 0);
+    signal debug_offset_v : unsigned(2 downto 0);
+    signal debug_size_v : unsigned(6 downto 0);
+
 begin
 
     byte_0_count <= byte_count;
@@ -62,285 +65,296 @@ begin
     byte_6_count <= byte_count + 6;
     byte_7_count <= byte_count + 7;
 
+
 process(clk)
+
+    variable type_v : unsigned(2 downto 0);
+    variable size_v : unsigned(6 downto 0);
+    variable offset_v : unsigned(2 downto 0);
+
+
     begin 
 
         if rising_edge(clk) then 
+
             if rst = '1' then 
                 frame_reg <= (others => '0');
                 success_signal <= '0';  -- Add this
                 offset <= (others => '0'); 
+                
+                type_v := (others => '0');
+                size_v := (others => '0');
+                offset_v := (others => '0');
 
             else
-            -- should keep success signal high for one cycle only;
+            -- should keep success signal high for one cycle only
                 success_signal <= '0';
 
             --type byte identifier + reset signal for counter    
-                if byte_0_count = frame_size then 
-                    frame_type_raw <= data(7 downto 0);
+                if byte_0_count = frame_size then
 
                     success_signal <= '1';
-                 
-                        case data(7 downto 0) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                    case data(7 downto 0) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when others => null;
-                        end case;
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                elsif byte_1_count = frame_size then 
-                    frame_type_raw <= data(15 downto 8);
+                        when others => null;
+                    end case;
+
+                elsif byte_1_count = frame_size then
+
                     success_signal <= '1';
 
-                        case data(15 downto 8) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
+                    case data(15 downto 8) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                            when others => null;
-                        end case;
+                        when others => null;
+                    end case;
 
-                elsif byte_2_count = frame_size then 
-                    frame_type_raw <= data(23 downto 16);
+                elsif byte_2_count = frame_size then
+
                     success_signal <= '1';
 
-                        case data(23 downto 16) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
+                    case data(23 downto 16) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                            when others => null;
-                        end case;
+                        when others => null;
+                    end case;
 
-                elsif byte_3_count = frame_size then 
-                    frame_type_raw <= data(31 downto 24);
+                elsif byte_3_count = frame_size then
+
                     success_signal <= '1';
 
-                        case data(31 downto 24) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
+                    case data(31 downto 24) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                            when others => null;
-                        end case;
+                        when others => null;
+                    end case;
 
                 elsif byte_4_count = frame_size then
-                    frame_type_raw <= data(39 downto 32);
-                    success_signal <= '1'; 
-                    
-                        case data(39 downto 32) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
-
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
-
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
-
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
-
-                            when others => null;
-                        end case;
-
-                elsif byte_5_count = frame_size then 
-                    frame_type_raw <= data(47 downto 40);
                     success_signal <= '1';
 
-                        case data(47 downto 40) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
+                    case data(39 downto 32) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                            when others => null;
-                        end case;
+                        when others => null;
+                    end case;
 
-                elsif byte_6_count = frame_size then 
-                    frame_type_raw <= data(55 downto 48);
+                elsif byte_5_count = frame_size then
+
                     success_signal <= '1';
 
-                        case data(55 downto 48) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
+                    case data(47 downto 40) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                            when others => null;
-                        end case;
+                        when others => null;
+                    end case;
 
-                elsif byte_7_count = frame_size then 
-                    frame_type_raw <= data(63 downto 56);
+                elsif byte_6_count = frame_size then
+
                     success_signal <= '1';
 
-                        case data(63 downto 56) is
-                            when x"41" => 
-                                offset <= offset + 4;
-                                frame_type <= ADD;
-                                frame_size <= ADD_SIZE;   -- ADD
+                    case data(55 downto 48) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
 
-                            when x"58" => 
-                                offset <= offset + 7;
-                                frame_type <= CANCEL;
-                                frame_size <= CANCEL_SIZE;   -- CANCEL
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
 
-                            when x"55" => 
-                                offset <= offset + 3;
-                                frame_type <= REPLACE;
-                                frame_size <= REPALCE_SIZE;   -- REPLACE
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
 
-                            when x"45" => 
-                                offset <= offset + 7;
-                                frame_type <= EXECUTED;
-                                frame_size <= EXECUTED_SIZE;   -- EXECUTED
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
 
-                            when x"44" => 
-                                offset <= offset + 3;
-                                frame_type <= DELETE;
-                                frame_size <= DELETE_SIZE;   -- DELETE
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
 
-                            when others => null;
-                        end case;
-                
+                        when others => null;
+                    end case;
+
+                elsif byte_7_count = frame_size then
+
+                    success_signal <= '1';
+
+                    case data(63 downto 56) is
+                        when x"41" =>
+                            offset_v := offset + 4;
+                            type_v   := ADD;
+                            size_v   := ADD_SIZE;
+
+                        when x"58" =>
+                            offset_v := offset + 7;
+                            type_v   := CANCEL;
+                            size_v   := CANCEL_SIZE;
+
+                        when x"55" =>
+                            offset_v := offset + 3;
+                            type_v   := REPLACE;
+                            size_v   := REPALCE_SIZE;
+
+                        when x"45" =>
+                            offset_v := offset + 7;
+                            type_v   := EXECUTED;
+                            size_v   := EXECUTED_SIZE;
+
+                        when x"44" =>
+                            offset_v := offset + 3;
+                            type_v   := DELETE;
+                            size_v   := DELETE_SIZE;
+
+                        when others => null;
+                    end case;
+
                 end if;
                 --frame building logic
                 case frame_type is 
@@ -976,11 +990,20 @@ process(clk)
 
         end if;
 
+        frame_type <= type_v;
+        frame_size <= size_v;
+        offset <= offset_v;
+        debug_type_v <= type_v;
+        debug_offset_v <= offset_v;
+        debug_size_v <= size_v;
+        
+
     end process;           
 
     frame <= frame_reg;
     success <= success_signal;
     frame_type_out <= frame_type;
     offset_out <= offset;
+
 
 end architecture;   

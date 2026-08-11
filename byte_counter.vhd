@@ -19,6 +19,7 @@ architecture rtl of byte_counter is
 
     signal count_reg : unsigned(6 downto 0):=(others => '0');
     signal current_offset : unsigned(6 downto 0):= (others => '0');
+    signal current_success : std_logic := '0';
     
 begin 
     process(clk)
@@ -28,11 +29,20 @@ begin
                 if rst = '1' then 
                     count_reg <= (others => '0');
                     current_offset <= (others => '0');
+                    current_success <= '0';
+
                 else 
 
-                    if (success = '1') and (frame_type_in /= "000") then 
-                        count_reg <= (others => '0');
-                        current_offset <= resize(offset, current_offset'length);
+                    if (success = '1')  then 
+
+                        if current_success = '1' then 
+                            count_reg <= (others => '0');
+                            current_offset <= resize(offset, current_offset'length);
+                        else 
+
+                            current_success <= '1';
+                            
+                        end if;
 
                     elsif count_reg >= 32 then 
                         count_reg <= (others => '0');
