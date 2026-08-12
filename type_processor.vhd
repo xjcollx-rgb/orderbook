@@ -11,7 +11,7 @@ entity type_processor is
     frame : out unsigned(199 downto 0);
     byte_count : in unsigned(6 downto 0);
     success : out std_logic;
-    frame_type_out : out unsigned(2 downto 0);
+    frame_size_out : out unsigned(6 downto 0);
     offset_out : out unsigned(2 downto 0)
     );
 
@@ -34,10 +34,10 @@ architecture rtl of type_processor is
 
     signal offset : unsigned(2 downto 0):= (others => '0');
 
-    signal frame_type     : unsigned(2 downto 0) := (others => '0');
+    signal frame_type     : unsigned(2 downto 0);
 
     signal success_signal : std_logic ;
-    signal frame_size     : unsigned(6 downto 0):= (others => '0');
+    signal frame_size     : unsigned(6 downto 0);
 
     constant ADD      : unsigned(2 downto 0) := "000";
     constant CANCEL   : unsigned(2 downto 0) := "001";
@@ -89,6 +89,9 @@ process(clk)
             else
             -- should keep success signal high for one cycle only
                 success_signal <= '0';
+                offset_v := offset;
+                type_v := frame_type;
+                size_v := frame_size;
 
             --type byte identifier + reset signal for counter    
                 if byte_0_count = frame_size then
@@ -97,7 +100,7 @@ process(clk)
 
                     case data(7 downto 0) is
                         when x"41" =>
-                            offset_v := offset + 4;
+                            offset_v := offset + 4; -- dont get how this doesnt add but it does in the counter
                             type_v   := ADD;
                             size_v   := ADD_SIZE;
 
@@ -988,21 +991,23 @@ process(clk)
 
             end if;
 
-        end if;
-
         frame_type <= type_v;
         frame_size <= size_v;
         offset <= offset_v;
         debug_type_v <= type_v;
         debug_offset_v <= offset_v;
         debug_size_v <= size_v;
+
+        end if;
+
+
         
 
     end process;           
 
     frame <= frame_reg;
     success <= success_signal;
-    frame_type_out <= frame_type;
+    frame_size_out <= frame_size;
     offset_out <= offset;
 
 
