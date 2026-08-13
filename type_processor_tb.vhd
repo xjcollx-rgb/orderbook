@@ -16,7 +16,8 @@ architecture simple of type_processor_tb is
             byte_count     : in  unsigned(6 downto 0);
             success        : out std_logic;
             frame_size_out : out unsigned(6 downto 0);
-            offset_out     : out unsigned(2 downto 0)
+            offset_out     : out unsigned(2 downto 0);
+            state_out      : out std_logic
         );
     end component;
 
@@ -27,7 +28,8 @@ architecture simple of type_processor_tb is
             success       : in  std_logic;
             offset        : in  unsigned(2 downto 0);
             frame_size_in : in  unsigned(6 downto 0);
-            byte_count    : out unsigned(6 downto 0)
+            byte_count    : out unsigned(6 downto 0);
+            state_in      : in std_logic
         );
     end component;
 
@@ -38,6 +40,7 @@ architecture simple of type_processor_tb is
     signal success        : std_logic;
     signal frame_size_out : unsigned(6 downto 0);
     signal offset_out     : unsigned(2 downto 0);
+    signal state_out      : std_logic;
 
     constant T : time := 10 ns;
 
@@ -124,7 +127,8 @@ begin
         byte_count     => byte_count,
         success        => success,
         frame_size_out => frame_size_out,
-        offset_out     => offset_out
+        offset_out     => offset_out,
+        state_out      => state_out
     );
 
     cnt: byte_counter port map (
@@ -133,7 +137,8 @@ begin
         success       => success,
         offset        => offset_out,
         frame_size_in => frame_size_out,
-        byte_count    => byte_count
+        byte_count    => byte_count,
+        state_in      => state_out
     );
 
     process
