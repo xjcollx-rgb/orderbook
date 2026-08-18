@@ -54,6 +54,7 @@ architecture rtl of type_processor is
     type state_t is (IDLE,PROCESSING);
     signal state : state_t := PROCESSING;
     signal state_signal : std_logic:= '1';
+    signal previous_success : std_logic;
 
     signal debug_type_v : unsigned(2 downto 0);
     signal debug_offset_v : unsigned(2 downto 0);
@@ -149,7 +150,8 @@ process(clk)
                 state_signal <= '1';
 
                 if (byte_count <= frame_size) and (frame_size <= byte_count + 7) then 
-                    --type byte identifier + reset signal for counter    
+                    --type byte identifier + reset signal for counter 
+
                     if byte_0_count = frame_size then
 
                         case data(7 downto 0) is

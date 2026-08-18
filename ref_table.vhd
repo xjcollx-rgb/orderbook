@@ -6,9 +6,10 @@ entity ref_table is
 port (
     clk : in STD_LOGIC;
     rst : in STD_LOGIC;
-    data : in unsigned(191 downto 0);
-    success : in std_logic;
-    frame_type : unsigned(1 downto 0)
+    data : in unsigned(199 downto 0);
+    empty_in : in std_logic;
+    frame_type :in unsigned(2 downto 0);
+    data_written : out std_logic := '0'
 
 );
 end ref_table;
@@ -32,7 +33,7 @@ architecture rtl of ref_table is
 
     signal address : unsigned(12 downto 0) := (others => '0');
     signal read_data : unsigned(135 downto 0);
-    signal search_count : unsigned(4 downto 0):= (others => '0');
+    signal search_count : unsigned(13 downto 0):= (others => '0');
 
 begin 
 
@@ -50,12 +51,14 @@ begin
                 case state is 
 
                     when IDLE => 
-                        if success = '1' then 
+                        data_written <= '0';
+
+                        if empty_in = '0' then 
                             case frame_type is 
                                 when ADD =>
                                     state <= WRITE;
 
-                                when CANCEL | EXECUTED | REPLACE =>
+                                when CANCEL | EXECUTED | REPLACE | DELETE =>
                                 state <= READ;
 
                                 when others => null;
@@ -69,7 +72,7 @@ begin
                         if read_data(135 downto 72) = data(135 downto 72) and valid(to_integer(address)) = '1' then 
                             state <= WRITE;
                             search_count <= (others => '0');
-                        elsif search_count >= 20 then 
+                        elsif search_count >= 8191 then 
                             state <= IDLE;
                             search_count <= (others => '0');
                         else 
@@ -85,12 +88,16 @@ begin
                                 if valid(to_integer(address)) = '0' then 
                                     ram(to_integer(address)) <= data(135 downto 0);
                                     state <= IDLE;
+                                    data_written <= '1';
+                                    valid(to_integer(address)) <= '1';
                                 else 
                                     address <= address + 1;
                                 end if;
 
                             when CANCEL | EXECUTED =>
                                 read_data(63 downto 32) <= read_data(63 downto 32) - data(63 downto 32);
+
+                                data_written <= '1';
 
                                 if read_data(63 downto 32) >= 0 then 
                                     valid(to_integer(address)) <= '0';
@@ -105,10 +112,12 @@ begin
                                 read_data(63 downto 0) <= data(63 downto 0);
                                 ram(to_integer(address)) <= read_data;
                                 state <= IDLE;
+                                data_written <= '1';
 
                             when DELETE =>
                                 valid(to_integer(address)) <= '0';
                                 state <= IDLE;
+                                data_written <= '1';
                         end case; 
 
                 end case;

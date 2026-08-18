@@ -33,6 +33,25 @@ architecture simple of type_processor_tb is
         );
     end component;
 
+    component fifo 
+        port (
+        clk : in std_logic;
+        rst : in std_logic;
+
+        din  : in  unsigned(199 downto 0);
+        dout : out unsigned(199 downto 0) := (others => '0');
+
+        full_out  : out std_logic := '0';
+        empty_out : out std_logic := '1';
+
+        succes_in : in std_logic;
+        read_in   : in std_logic
+
+        
+        );
+    
+    end component;
+
     signal clk            : std_logic := '0';
     signal rst            : std_logic := '1';
     signal data_in        : unsigned(63 downto 0) := (others => '0');
@@ -41,6 +60,8 @@ architecture simple of type_processor_tb is
     signal frame_size_out : unsigned(6 downto 0);
     signal offset_out     : unsigned(2 downto 0);
     signal state_out      : std_logic;
+    signal frame       : unsigned(199 downto 0);
+    
 
     constant T : time := 10 ns;
 
@@ -74,45 +95,32 @@ architecture simple of type_processor_tb is
     type word_array is array (natural range <>) of unsigned(63 downto 0);
     constant words : word_array(0 to 19) := (
         -- Word 0:  bytes  0- 7  ADD type at lane 0
-        x"0000000000000041",
-        -- Word 1:  bytes  8-15  ADD payload
-        x"0000000000000000",
-        -- Word 2:  bytes 16-23  ADD payload
-        x"0000000000000000",
-        -- Word 3:  bytes 24-31  ADD payload
-        x"0000000000000000",
-        -- Word 4:  bytes 32-39  CANCEL type at lane 4 (bits 39:32)
-        x"0000005800000000",
-        -- Word 5:  bytes 40-47  CANCEL payload
-        x"0000000000000000",
-        -- Word 6:  bytes 48-55  CANCEL payload
-        x"0000000000000000",
-        -- Word 7:  bytes 56-63  REPLACE type at lane 3 (bits 31:24)
-        x"0000000055000000",
-        -- Word 8:  bytes 64-71  REPLACE payload
-        x"0000000000000000",
-        -- Word 9:  bytes 72-79  REPLACE payload
-        x"0000000000000000",
-        -- Word 10: bytes 80-87  REPLACE payload
-        x"0000000000000000",
-        -- Word 11: bytes 88-95  EXECUTED type at lane 6 (bits 55:48)
-        x"0000004500000000",
-        -- Word 12: bytes 96-103 EXECUTED payload
-        x"0000000000000000",
-        -- Word 13: bytes104-111 EXECUTED payload
-        x"0000000000000000",
-        -- Word 14: bytes112-119 EXECUTED payload
-        x"0000000000000000",
-        -- Word 15: bytes120-127 DELETE type at lane 5 (bits 47:40)
-        x"4444444444444444",
-        -- Word 16: bytes128-135 DELETE payload
-        x"0000000000000000",
-        -- Word 17: bytes136-143 DELETE payload (last byte at 143)
-        x"0000000000000000",
-        -- Word 18: padding
-        x"0000000000000000",
-        -- Word 19: padding
-        x"0000000000000000"
+        x"0000000000000041",  -- Word 0:  bytes 0-7   ADD type at lane 0
+        x"0101010101010101",  -- Word 1:  bytes 8-15  ADD payload
+        x"0101010101010101",  -- Word 2:  bytes 16-23 ADD payload
+        x"0101010101010101",  -- Word 3:  bytes 24-31 ADD payload
+
+        x"0000005800000000",  -- Word 4:  bytes 32-39 CANCEL type at lane 4
+        x"0202020202020202",  -- Word 5:  bytes 40-47 CANCEL payload
+        x"0202020202020202",  -- Word 6:  bytes 48-55 CANCEL payload
+
+        x"0000000055000000",  -- Word 7:  bytes 56-63 REPLACE type at lane 3
+        x"0303030303030303",  -- Word 8:  bytes 64-71 REPLACE payload
+        x"0303030303030303",  -- Word 9:  bytes 72-79 REPLACE payload
+        x"0303030303030303",  -- Word 10: bytes 80-87 REPLACE payload
+
+        x"0000004500000000",  -- Word 11: bytes 88-95 EXECUTED type at lane 6
+        x"0404040404040404",  -- Word 12: bytes 96-103 EXECUTED payload
+        x"0404040404040404",  -- Word 13: bytes 104-111 EXECUTED payload
+        x"0404040404040404",  -- Word 14: bytes 112-119 EXECUTED payload
+
+        x"4444444444444444",  -- Word 15: bytes 120-127 DELETE type at lane 5
+        x"0505050505050505",  -- Word 16: bytes 128-135 DELETE payload
+        x"0505050505050505",  -- Word 17: bytes 136-143 DELETE payload
+
+        x"0000000000000000",  -- Word 18: padding
+        x"0000000000000000"   -- Word 19: padding
+
     );
 
 begin
@@ -123,7 +131,7 @@ begin
         data           => data_in,
         clk            => clk,
         rst            => rst,
-        frame          => open,
+        frame          => frame,
         byte_count     => byte_count,
         success        => success,
         frame_size_out => frame_size_out,
@@ -139,6 +147,16 @@ begin
         frame_size_in => frame_size_out,
         byte_count    => byte_count,
         state_in      => state_out
+    );
+
+    pnt : fifo port map (
+
+        clk => clk,
+        rst => rst,
+        succes_in => success,
+        din => frame,
+        read_in => '0'
+
     );
 
     process
