@@ -45,7 +45,7 @@ begin
             full_out   => full_out,
             empty_out  => empty_out,
 
-            succes_in  => succes_in,
+            success_in  => succes_in,
             read_in    => read_in
         );
 

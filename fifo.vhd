@@ -19,8 +19,9 @@ entity fifo is
         full_out  : out std_logic := '0';
         empty_out : out std_logic := '1';
 
-        succes_in : in std_logic;
-        read_in   : in std_logic
+        success_in : in std_logic;
+        read_in   : in std_logic;
+        previous_success : in std_logic
     );
 
 end fifo;
@@ -66,7 +67,7 @@ begin
 
 
                 -- WRITE
-                if succes_in = '1' and full = '0' then 
+                if success_in = '1' and full = '0'  then 
 
                     ram(to_integer(write_point)) <= din;
                     write_point <= write_point + 1;
@@ -83,7 +84,7 @@ begin
 
 
                 -- Update count
-                if succes_in = '1' and full = '0' and
+                if success_in = '1' and full = '0' and
                    not (read_in = '1' and empty = '0') then
 
                     count_next := count + 1;

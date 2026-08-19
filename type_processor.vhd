@@ -12,8 +12,10 @@ entity type_processor is
     byte_count : in unsigned(6 downto 0);
     success : out std_logic;
     frame_size_out : out unsigned(6 downto 0);
-    offset_out : out unsigned(2 downto 0);
-    state_out : out std_logic:= '1'
+    previous_offset_out : out unsigned(2 downto 0);
+    state_out : out std_logic:= '1';
+    previous_success_out : out std_logic;
+    current_frame_stored : out std_logic
     );
 
 end type_processor;
@@ -55,6 +57,7 @@ architecture rtl of type_processor is
     signal state : state_t := PROCESSING;
     signal state_signal : std_logic:= '1';
     signal previous_success : std_logic;
+    signal previous_offset  : unsigned(2 downto 0):= ("000");
 
     signal debug_type_v : unsigned(2 downto 0);
     signal debug_offset_v : unsigned(2 downto 0);
@@ -87,6 +90,9 @@ process(clk)
                 frame_reg <= (others => '0');
                 success_signal <= '0';  -- Add this
                 offset <= (others => '0'); 
+                previous_success <= '0';
+                previous_offset <= "000";
+
                 
                 type_v := (others => '0');
                 size_v := (others => '0');
@@ -95,6 +101,7 @@ process(clk)
             else
                 -- should keep success signal high for one cycle only
                 success_signal <= '0';
+                current_frame_stored <= '0';
                 offset_v := offset;
                 type_v := frame_type;
                 size_v := frame_size;
@@ -141,13 +148,22 @@ process(clk)
                             success_signal <= '1';
                             state <= PROCESSING;
 
-                        when others => frame_size <= "0000000";
+                        when others => size_v := "0000000";
                     end case;
                 end if;
                 
                 when PROCESSING =>
 
                 state_signal <= '1';
+
+                if success_signal = '1' then 
+                        previous_success <= '1';
+                end if; 
+
+                if (byte_count <= frame_size-1) and (frame_size-1 <= byte_count + 7) then
+                    current_frame_stored <= '1';
+                end if;
+
 
                 if (byte_count <= frame_size) and (frame_size <= byte_count + 7) then 
                     --type byte identifier + reset signal for counter 
@@ -161,11 +177,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -173,11 +197,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -185,12 +217,19 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
+                                
                         end case;
 
                     elsif byte_1_count = frame_size then
@@ -202,11 +241,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -214,11 +261,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -226,12 +281,19 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
+
                         end case;
 
                     elsif byte_2_count = frame_size then
@@ -243,11 +305,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -255,11 +325,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -267,12 +345,18 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
                         end case;
 
                     elsif byte_3_count = frame_size then
@@ -284,11 +368,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -296,11 +388,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -308,12 +408,18 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
                         end case;
 
                     elsif byte_4_count = frame_size then
@@ -325,11 +431,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -337,11 +451,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -349,12 +471,18 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
                         end case;
 
                     elsif byte_5_count = frame_size then
@@ -366,11 +494,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -378,11 +514,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -390,12 +534,18 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
                         end case;
 
                     elsif byte_6_count = frame_size then
@@ -407,11 +557,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -419,11 +577,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -431,12 +597,18 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
                         end case;
 
                     elsif byte_7_count = frame_size then
@@ -448,11 +620,19 @@ process(clk)
                                 size_v   := ADD_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"58" =>
                                 offset_v := offset + 7;
                                 type_v   := CANCEL;
                                 size_v   := CANCEL_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"55" =>
                                 offset_v := offset + 3;
@@ -460,11 +640,19 @@ process(clk)
                                 size_v   := REPALCE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when x"45" =>
                                 offset_v := offset + 7;
                                 type_v   := EXECUTED;
                                 size_v   := EXECUTED_SIZE;
                                 success_signal <= '1';
+
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
 
                             when x"44" =>
                                 offset_v := offset + 3;
@@ -472,12 +660,18 @@ process(clk)
                                 size_v   := DELETE_SIZE;
                                 success_signal <= '1';
 
+                                if previous_success = '1' then 
+                                    previous_offset <= previous_offset + offset;
+                                end if;
+
                             when others => 
                                 size_v       := (others => '0');
                                 type_v       := (others => '0');
                                 offset_v     := (others => '0');
                                 state        <= IDLE;
                                 state_signal <= '0';
+                                previous_success <= '0';
+                                previous_offset <= "000";
                         end case;
                     
                     else 
@@ -1137,8 +1331,9 @@ process(clk)
     frame <= frame_reg;
     success <= success_signal;
     frame_size_out <= frame_size;
-    offset_out <= offset;
+    previous_offset_out <= previous_offset;
     state_out <= state_signal;
+    previous_success_out <= previous_success;
 
 
 end architecture;   

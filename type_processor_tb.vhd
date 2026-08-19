@@ -16,8 +16,10 @@ architecture simple of type_processor_tb is
             byte_count     : in  unsigned(6 downto 0);
             success        : out std_logic;
             frame_size_out : out unsigned(6 downto 0);
-            offset_out     : out unsigned(2 downto 0);
-            state_out      : out std_logic
+            previous_offset_out     : out unsigned(2 downto 0);
+            state_out      : out std_logic;
+            previous_success_out : out std_logic;
+            current_frame_stored : out std_logic
         );
     end component;
 
@@ -26,10 +28,11 @@ architecture simple of type_processor_tb is
             clk           : in  std_logic;
             rst           : in  std_logic;
             success       : in  std_logic;
-            offset        : in  unsigned(2 downto 0);
+            previous_offset        : in  unsigned(2 downto 0);
             frame_size_in : in  unsigned(6 downto 0);
             byte_count    : out unsigned(6 downto 0);
-            state_in      : in std_logic
+            state_in      : in std_logic;
+            previous_success : in std_logic
         );
     end component;
 
@@ -44,8 +47,9 @@ architecture simple of type_processor_tb is
         full_out  : out std_logic := '0';
         empty_out : out std_logic := '1';
 
-        succes_in : in std_logic;
-        read_in   : in std_logic
+        success_in : in std_logic;
+        read_in   : in std_logic;
+        previous_success : in std_logic
 
         
         );
@@ -58,9 +62,11 @@ architecture simple of type_processor_tb is
     signal byte_count     : unsigned(6 downto 0);
     signal success        : std_logic;
     signal frame_size_out : unsigned(6 downto 0);
-    signal offset_out     : unsigned(2 downto 0);
+    signal previous_offset_out     : unsigned(2 downto 0);
     signal state_out      : std_logic;
     signal frame       : unsigned(199 downto 0);
+    signal previous_success : std_logic;
+    signal current_frame_stored : std_logic;
     
 
     constant T : time := 10 ns;
@@ -135,27 +141,31 @@ begin
         byte_count     => byte_count,
         success        => success,
         frame_size_out => frame_size_out,
-        offset_out     => offset_out,
-        state_out      => state_out
+        previous_offset_out     => previous_offset_out,
+        state_out      => state_out,
+        previous_success_out => previous_success,
+        current_frame_stored =>  current_frame_stored
     );
 
     cnt: byte_counter port map (
         clk           => clk,
         rst           => rst,
         success       => success,
-        offset        => offset_out,
+        previous_offset        => previous_offset_out,
         frame_size_in => frame_size_out,
         byte_count    => byte_count,
-        state_in      => state_out
+        state_in      => state_out,
+        previous_success => previous_success
     );
 
     pnt : fifo port map (
 
         clk => clk,
         rst => rst,
-        succes_in => success,
+        success_in => current_frame_stored,
         din => frame,
-        read_in => '0'
+        read_in => '0',
+        previous_success => previous_success
 
     );
 
@@ -180,7 +190,7 @@ begin
             cnt := cnt + 1;
             report "Frame #" & integer'image(cnt) &
                    " size=" & integer'image(to_integer(frame_size_out)) &
-                   " offset=" & integer'image(to_integer(offset_out)) &
+                   " offset=" & integer'image(to_integer(previous_offset_out)) &
                    " byte_count=" & integer'image(to_integer(byte_count)) &
                    " at time " & time'image(now);
         end if;
