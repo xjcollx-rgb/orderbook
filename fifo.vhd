@@ -34,7 +34,7 @@ architecture rtl of fifo is
     signal full  : std_logic := '0';
     signal empty : std_logic := '1';
 
-    type ram_t is array (0 to 2047) of unsigned(199 downto 0);
+    type ram_t is array (0 to 2047) of unsigned(202 downto 0);
     signal ram : ram_t := (others => (others => '0')); 
 
     signal count : unsigned(11 downto 0) := (others => '0');

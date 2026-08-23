@@ -58,6 +58,7 @@ architecture rtl of type_processor is
     signal state_signal : std_logic:= '1';
     signal previous_success : std_logic;
     signal previous_offset  : unsigned(2 downto 0):= ("000");
+    signal current_frame_stored_signal : std_logic;
 
     signal debug_type_v : unsigned(2 downto 0);
     signal debug_offset_v : unsigned(2 downto 0);
@@ -101,7 +102,7 @@ process(clk)
             else
                 -- should keep success signal high for one cycle only
                 success_signal <= '0';
-                current_frame_stored <= '0';
+                current_frame_stored_signal <= '0';
                 offset_v := offset;
                 type_v := frame_type;
                 size_v := frame_size;
@@ -166,11 +167,11 @@ process(clk)
                 end if; 
 
                 if (byte_count <= frame_size-1) and (frame_size-1 <= byte_count + 7) then
-                    current_frame_stored <= '1';
+                    current_frame_stored_signal <= '1';
                 end if;
 
-                if current_frame_stored <= '1' then
-                    frame_reg <= frame_type;
+                if current_frame_stored_signal <= '1' then
+                    frame_reg(202 downto 200) <= frame_type;
                 end if;
                     
 
@@ -1344,6 +1345,7 @@ process(clk)
     previous_offset_out <= previous_offset;
     state_out <= state_signal;
     previous_success_out <= previous_success;
+    current_frame_stored <= current_frame_stored_signal;
 
 
 end architecture;   

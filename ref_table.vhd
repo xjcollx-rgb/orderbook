@@ -378,7 +378,7 @@ begin
                                 ram(to_integer(address)) <= ram_v;
 
                                 price_table(71 downto 0) <= replace_data;
-                                price_table(143 downto 2) <= ram_v(71 downto 0);
+                                price_table(143 downto 72) <= ram_v(71 downto 0);
                                 price_table(145 downto 144) <= "10";
 
                                 data_written <= '1';

@@ -48,8 +48,7 @@ architecture simple of type_processor_tb is
         empty_out : out std_logic := '1';
 
         success_in : in std_logic;
-        read_in   : in std_logic;
-        previous_success : in std_logic
+        read_in   : in std_logic
 
         
         );
@@ -164,8 +163,7 @@ begin
         rst => rst,
         success_in => current_frame_stored,
         din => frame,
-        read_in => '0',
-        previous_success => previous_success
+        read_in => '0'
 
     );
 
