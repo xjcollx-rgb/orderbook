@@ -685,7 +685,7 @@ process(clk)
                         when ADD => 
 
                             case to_integer(byte_0_count) is
-                                when 11 => frame_reg(135 downto 128) <= data(7 downto 0);
+                                when 11 => frame_reg(135 downto 128) <= data(7 downto 0);-- ref number
                                 when 12 => frame_reg(127 downto 120) <= data(7 downto 0);
                                 when 13 => frame_reg(119 downto 112) <= data(7 downto 0);
                                 when 14 => frame_reg(111 downto 104) <= data(7 downto 0);
@@ -693,12 +693,12 @@ process(clk)
                                 when 16 => frame_reg(95 downto 88) <= data(7 downto 0);
                                 when 17 => frame_reg(87 downto 80) <= data(7 downto 0);
                                 when 18 => frame_reg(79 downto 72) <= data(7 downto 0);
-                                when 19 => frame_reg(71 downto 64) <= data(7 downto 0);
-                                when 20 => frame_reg(63 downto 56) <= data(7 downto 0);
+                                when 19 => frame_reg(71 downto 64) <= data(7 downto 0);-- side
+                                when 20 => frame_reg(63 downto 56) <= data(7 downto 0);-- shares
                                 when 21 => frame_reg(55 downto 48) <= data(7 downto 0);
                                 when 22 => frame_reg(47 downto 40) <= data(7 downto 0);
                                 when 23 => frame_reg(39 downto 32) <= data(7 downto 0);
-                                when 32 => frame_reg(31 downto 24) <= data(7 downto 0);
+                                when 32 => frame_reg(31 downto 24) <= data(7 downto 0);-- price
                                 when 33 => frame_reg(23 downto 16) <= data(7 downto 0);
                                 when 34 => frame_reg(15 downto 8) <= data(7 downto 0);
                                 when 35 => frame_reg(7 downto 0) <= data(7 downto 0);
