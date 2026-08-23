@@ -12,7 +12,7 @@ architecture simple of type_processor_tb is
             data           : in  unsigned(63 downto 0);
             clk            : in  std_logic;
             rst            : in  std_logic;
-            frame          : out unsigned(199 downto 0);
+            frame          : out unsigned(202 downto 0);
             byte_count     : in  unsigned(6 downto 0);
             success        : out std_logic;
             frame_size_out : out unsigned(6 downto 0);
@@ -41,8 +41,8 @@ architecture simple of type_processor_tb is
         clk : in std_logic;
         rst : in std_logic;
 
-        din  : in  unsigned(199 downto 0);
-        dout : out unsigned(199 downto 0) := (others => '0');
+        din  : in  unsigned(202 downto 0);
+        dout : out unsigned(202 downto 0) := (others => '0');
 
         full_out  : out std_logic := '0';
         empty_out : out std_logic := '1';
@@ -64,7 +64,7 @@ architecture simple of type_processor_tb is
     signal frame_size_out : unsigned(6 downto 0);
     signal previous_offset_out     : unsigned(2 downto 0);
     signal state_out      : std_logic;
-    signal frame       : unsigned(199 downto 0);
+    signal frame       : unsigned(202 downto 0);
     signal previous_success : std_logic;
     signal current_frame_stored : std_logic;
     

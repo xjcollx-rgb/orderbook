@@ -8,7 +8,7 @@ entity type_processor is
     data : in unsigned(63 downto 0);
     clk : in std_logic;
     rst : in std_logic;
-    frame : out unsigned(199 downto 0);
+    frame : out unsigned(202 downto 0);
     byte_count : in unsigned(6 downto 0);
     success : out std_logic;
     frame_size_out : out unsigned(6 downto 0);
@@ -23,7 +23,7 @@ end type_processor;
 
 architecture rtl of type_processor is
 
-    signal frame_reg : unsigned(199 downto 0):= (others => '0');
+    signal frame_reg : unsigned(202 downto 0):= (others => '0');
     signal overflow_reg : unsigned(55 downto 0);
 
     signal byte_0_count : unsigned(6 downto 0);
@@ -119,6 +119,7 @@ process(clk)
                             size_v   := ADD_SIZE;
                             success_signal <= '1';
                             state <= PROCESSING;
+                            frame_reg(202 downto 200) <= ADD;
 
                         when x"58" =>
                             offset_v := offset + 7;
@@ -126,6 +127,7 @@ process(clk)
                             size_v   := CANCEL_SIZE;
                             success_signal <= '1';
                             state <= PROCESSING;
+                            frame_reg(202 downto 200) <= CANCEL;
 
                         when x"55" =>
                             offset_v := offset + 3;
@@ -133,6 +135,7 @@ process(clk)
                             size_v   := REPALCE_SIZE;
                             success_signal <= '1';
                             state <= PROCESSING;
+                            frame_reg(202 downto 200) <= REPLACE;
 
                         when x"45" =>
                             offset_v := offset + 7;
@@ -140,6 +143,7 @@ process(clk)
                             size_v   := EXECUTED_SIZE;
                             success_signal <= '1';
                             state <= PROCESSING;
+                            frame_reg(202 downto 200) <= EXECUTED;
 
                         when x"44" =>
                             offset_v := offset + 3;
@@ -147,6 +151,7 @@ process(clk)
                             size_v   := DELETE_SIZE;
                             success_signal <= '1';
                             state <= PROCESSING;
+                            frame_reg(202 downto 200) <= DELETE;
 
                         when others => size_v := "0000000";
                     end case;
@@ -163,6 +168,11 @@ process(clk)
                 if (byte_count <= frame_size-1) and (frame_size-1 <= byte_count + 7) then
                     current_frame_stored <= '1';
                 end if;
+
+                if current_frame_stored <= '1' then
+                    frame_reg <= frame_type;
+                end if;
+                    
 
 
                 if (byte_count <= frame_size) and (frame_size <= byte_count + 7) then 

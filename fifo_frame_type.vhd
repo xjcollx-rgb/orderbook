@@ -2,31 +2,25 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity fifo is 
+entity fifo_frame_type is 
+    port(
 
-    generic(
-        DATA_WIDTH : integer := 203;
-        DEPTH      : integer := 2048
-    );
-
-    port (
         clk : in std_logic;
         rst : in std_logic;
 
-        din  : in  unsigned(DATA_WIDTH - 1 downto 0);
-        dout : out unsigned(DATA_WIDTH - 1 downto 0) := (others => '0');
-
-        full_out  : out std_logic := '0';
-        empty_out : out std_logic := '1';
+        din : in unsigned(2 downto 0);
+        dout : out unsigned(2 downto 0);
 
         success_in : in std_logic;
-        read_in   : in std_logic
+        read_in : in std_logic;
+
+        full_out : out std_logic;
+        empty_out : out std_logic
     );
 
-end fifo;
+end fifo_frame_type;
 
-
-architecture rtl of fifo is
+architecture rtl of fifo_frame_type is 
 
     signal write_point : unsigned(10 downto 0) := (others => '0');
     signal read_point  : unsigned(10 downto 0) := (others => '0');
@@ -34,7 +28,7 @@ architecture rtl of fifo is
     signal full  : std_logic := '0';
     signal empty : std_logic := '1';
 
-    type ram_t is array (0 to 2047) of unsigned(199 downto 0);
+    type ram_t is array (0 to 2047) of unsigned(2 downto 0);
     signal ram : ram_t := (others => (others => '0')); 
 
     signal count : unsigned(11 downto 0) := (others => '0');
