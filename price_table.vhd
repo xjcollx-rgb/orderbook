@@ -28,13 +28,12 @@ architecture rtl of price_table is
     -- Main aggregation table: 2048 price levels, hashed + linear
     -- probed on price.
     --
-    -- Word layout (97 bits):
-    --   bit  96      : valid
+    -- Word layout (96 bits):
     --   bits 95..64  : price
     --   bits 63..32  : aggregate buy shares  at this price
     --   bits 31..0   : aggregate sell shares at this price
     ----------------------------------------------------------------
-    type ram_t is array (0 to 2047) of unsigned(96 downto 0);
+    type ram_t is array (0 to 2047) of unsigned(95 downto 0);
     signal ram : ram_t := (others => (others => '0'));
 
     type ram_bucket is array(0 to 255) of unsigned(255 downto 0);
@@ -49,7 +48,7 @@ architecture rtl of price_table is
     ----------------------------------------------------------------
     -- State machine
     ----------------------------------------------------------------
-    type state_t is (IDLE, READ, CHECK, WRITE, RESCAN);
+    type state_t is (IDLE, READ_BUCKETS, CHECK, READ_PRICE_TABLE, WRITE_PRICE_TABLE);
     signal state : state_t := IDLE;
 
     -- Operation types
@@ -57,6 +56,10 @@ architecture rtl of price_table is
     constant EXECCAN : unsigned(1 downto 0) := "01";
     constant REPLACE : unsigned(1 downto 0) := "10";
     constant DELETE  : unsigned(1 downto 0) := "11";
+
+    -- sides
+    constant BUY : unsigned(7 downto 0) := x"42";
+    constant SELL : unsigned(7 downto 0) := x"53";
 
     -- Hash table search control
     signal original_hash : unsigned(7 downto 0);
@@ -69,24 +72,26 @@ architecture rtl of price_table is
     signal replace_side : unsigned(7 downto 0);
     signal replace_run : std_logic;
     signal bucket_data : unsigned(255 downto 0);
-    signal price_table_address : unsigned(0 to 2047);
+    signal price_table_address : unsigned(10 downto 0);
+    signal read_data : unsigned(95 downto 0);
+
+
 
     signal price_found : std_logic;
 
-    signal bucket_empty_0 : std_logic;
-    signal bucket_empty_1 : std_logic;
-    signal bucket_empty_2 : std_logic;
-    signal bucket_empty_3 : std_logic;
-    signal bucket_empty_4 : std_logic;
-    signal bucket_empty_5 : std_logic;    
-    signal bucket_empty_6 : std_logic;    
-    signal bucket_empty_7 : std_logic;
+    signal empty_slot_address : unsigned(10 downto 0);
+    signal empty_slot_found : std_logic;
+    signal empty_bucket_address : unsigned(2 downto 0);
+    signal price_found_bucket_address : unsigned(2 downto 0);
+
 
 begin
 
 
     process(clk)
 
+        variable v_read_data : unsigned(95 downto 0);
+        variable v_bucket_data : unsigned(255 downto 0);
 
     begin
         if rising_edge(clk) then
@@ -101,6 +106,11 @@ begin
                     when IDLE =>
 
                         data_written <= '0';
+                        empty_slot_found <= '0';
+                        empty_slot_address <= (others => '0');
+                        price_found <= '0';
+                        price_table_address <= (others => '0');
+
 
                         if fifo_empty = '0' then
                             
@@ -114,12 +124,12 @@ begin
                             replace_shares <= price_table(135 downto 104);
                             replace_side <= price_table(143 downto 136);
                             
-                            state <= READ;
+                            state <= READ_BUCKETS;
 
 
                         end if;
 
-                    when READ =>
+                    when READ_BUCKETS =>
 
                             if replace_run = '0' then
                                 bucket_data <= buckets(to_integer(original_hash));
@@ -132,99 +142,370 @@ begin
 
                     when CHECK =>
 
-                        if bucket_data(31 downto 0) = (others => '0') then 
-                                bucket_empty_0 <= '1';
 
-                        elsif bucket_data(63 downto 32 ) = (others => '0') then 
-                                bucket_empty_1 <= '1';
+                        if replace_run = '0' then 
+                            if bucket_data(31 downto 0) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000");
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "000";
 
-                        elsif bucket_data(95 downto 64 ) = (others => '0') then 
-                                bucket_empty_2 <= '1';
+                            elsif bucket_data(63 downto 32 ) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 1;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "001";
 
-                        elsif bucket_data(127 downto 96 ) = (others => '0') then 
-                                bucket_empty_3 <= '1';
+                            elsif bucket_data(95 downto 64 ) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 2;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "010";
 
-                        elsif bucket_data(159 downto 128) = (others => '0') then 
-                                bucket_empty_4 <= '1';
+                            elsif bucket_data(127 downto 96 ) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 3;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "011";
 
-                        elsif bucket_data(191 downto 160 ) = (others => '0') then 
-                                bucket_empty_5 <= '1';
+                            elsif bucket_data(159 downto 128) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 4;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "100";
 
-                        elsif bucket_data(223 downto 192) = (others => '0') then 
-                                bucket_empty_6 <= '1';
+                            elsif bucket_data(191 downto 160 ) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 5;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "101";
 
-                        elsif bucket_data(255 downto 224 ) = (others => '0') then 
-                                bucket_empty_7 <= '1';
-                        end if;
+                            elsif bucket_data(223 downto 192) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 6;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "110";
+
+                            elsif bucket_data(255 downto 224 ) = (others => '0') then 
+                                empty_slot_address <= (original_hash & "000") + 7;
+                                empty_slot_found <= '1';
+                                empty_bucket_address <= "111";
+                            end if;
 
                         
-                        if replace_run = '0' then 
+                        
                             if bucket_data(31 downto 0) = original_price then 
-                                price_table_address <= (original_hash * 8);
+                                price_table_address <= (original_hash & "000");
                                 price_found <= '1';
+                                price_found_bucket_address <= "000";
                             end if;
 
                             if bucket_data(63 downto 32) = original_price then 
-                                price_table_address <= (original_hash * 8) + 1;
+                                price_table_address <= (original_hash & "000") + 1;
                                 price_found <= '1';
+                                price_found_bucket_address <= "001";
                             end if;
+
                             if bucket_data(95 downto 64) = original_price then 
-                                price_table_address <= (original_hash * 8) + 2;
+                                price_table_address <= (original_hash & "000") + 2;
                                 price_found <= '1';
+                                price_found_bucket_address <= "010";
                             end if;
                             if bucket_data(127 downto 96) = original_price then 
-                                price_table_address <= (original_hash * 8) + 3;
+                                price_table_address <= (original_hash & "000") + 3;
                                 price_found <= '1';
+                                price_found_bucket_address <= "011";
                             end if;
 
                             if bucket_data(159 downto 128) = original_price then 
-                                price_table_address <= (original_hash * 8) + 4;
+                                price_table_address <= (original_hash & "000") + 4;
                                 price_found <= '1';
+                                price_found_bucket_address <= "100";
                             end if;
 
                             if bucket_data(191 downto 160) = original_price then 
-                                price_table_address <= (original_hash * 8) + 5;
+                                price_table_address <= (original_hash & "000") + 5;
                                 price_found <= '1';
+                                price_found_bucket_address <= "101";
                             end if;
 
                             if bucket_data(223 downto 192) = original_price then 
-                                price_table_address <= (original_hash * 8) + 6;
+                                price_table_address <= (original_hash & "000") + 6;
                                 price_found <= '1';
+                                price_found_bucket_address <= "110";
                             end if; 
 
                             if bucket_data(255 downto 224) = original_price then 
-                                price_table_address <= (original_hash * 8) + 7;
+                                price_table_address <= (original_hash & "000") + 7;
                                 price_found <= '1';
+                                price_found_bucket_address <= "111";
                             end if;
+
+                        
+
+                            
 
                         else 
 
+                            if bucket_data(31 downto 0) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000");
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(63 downto 32 ) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 1;
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(95 downto 64 ) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 2;
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(127 downto 96 ) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 3;
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(159 downto 128) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 4;
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(191 downto 160 ) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 5;
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(223 downto 192) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 6;
+                                empty_slot_found <= '1';
+
+                            elsif bucket_data(255 downto 224 ) = (others => '0') then 
+                                empty_slot_address <= (replace_hash & "000") + 7;
+                                empty_slot_found <= '1';
+                            end if;
+
+                        
+                        
                             if bucket_data(31 downto 0) = replace_price then 
-                                price_table_address <= (replace_hash * 8);
-                            elsif bucket_data(63 downto 32) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 1;
-                            elsif bucket_data(95 downto 64) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 2;
-                            elsif bucket_data(127 downto 96) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 3;
-                            elsif bucket_data(159 downto 128) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 4;
-                            elsif bucket_data(191 downto 160) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 5;
-                            elsif bucket_data(223 downto 192) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 6;
-                            elsif bucket_data(255 downto 224) = replace_price then 
-                                price_table_address <= (replace_hash * 8) + 7;
+                                price_table_address <= (replace_hash & "000");
+                                price_found <= '1';
+                            end if;
+
+                            if bucket_data(63 downto 32) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 1;
+                                price_found <= '1';
+                            end if;
+                            if bucket_data(95 downto 64) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 2;
+                                price_found <= '1';
+                            end if;
+                            if bucket_data(127 downto 96) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 3;
+                                price_found <= '1';
+                            end if;
+
+                            if bucket_data(159 downto 128) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 4;
+                                price_found <= '1';
+                            end if;
+
+                            if bucket_data(191 downto 160) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 5;
+                                price_found <= '1';
+                            end if;
+
+                            if bucket_data(223 downto 192) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 6;
+                                price_found <= '1';
+                            end if; 
+
+                            if bucket_data(255 downto 224) = replace_price then 
+                                price_table_address <= (replace_hash & "000") + 7;
+                                price_found <= '1';
                             end if;
 
                         end if;
 
-
-                    when WRITE =>
-
-                    when RESCAN =>
+                        state <= READ_PRICE_TABLE;
 
 
+                    when READ_PRICE_TABLE =>
+
+                            if price_found = '1' then 
+
+                                read_data <= ram(to_integer(price_table_address));
+                                state <= WRITE_PRICE_TABLE;
+
+                            elsif empty_slot_found = '1' then 
+
+                                state <= WRITE_PRICE_TABLE;
+
+                            else --need to add some sort of over flow incase the buckets are full
+
+                                
+
+                            end if;
+
+                    when WRITE_PRICE_TABLE =>
+
+                            v_read_data := read_data;
+                            v_bucket_data := bucket_data;
+
+                        case frame_type_in is 
+
+                                when ADD => 
+
+                                    if price_found = '1' then 
+
+                                        if original_side = BUY then 
+
+                                            v_read_data(63 downto 32) := v_read_data(63 downto 32) + original_shares;
+                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            state <= IDLE;
+
+                                        else 
+
+                                            v_read_data(31 downto 0) := v_read_data(31 downto 0) + original_shares;
+                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            state <= IDLE;
+
+                                        end if;
+                                    elsif empty_slot_found = '1' then
+                                        
+                                        v_bucket_data(31 + (to_integer(empty_bucket_address) * 8)  downto (to_integer(empty_bucket_address) * 8)) := original_price;
+                                        buckets(to_integer(original_hash)) <= v_bucket_data;
+
+                                        if original_side = BUY then 
+
+                                            ram(to_integer(empty_slot_address)) <= original_price & original_shares & (others => '0');
+                                            state <= IDLE;
+
+                                        else 
+
+                                            ram(to_integer(empty_slot_address)) <= original_price & (others => '0') & original_shares ;
+                                            state <= IDLE;
+
+                                        end if;
+                                    else 
+                                    
+                                    -- undcieded what to do with overflow yet
+
+                                    end if;
+
+
+
+                                when EXECCAN =>
+                                        
+                                    if price_found = '1' then 
+
+                                        if original_side = BUY then 
+
+                                            v_read_data(63 downto 32) := v_read_data(63 downto 32) - original_shares;
+
+                                            if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                buckets(to_integer(original_hash)) <= v_bucket_data; 
+
+                                            else 
+                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            state <= IDLE;
+                                            
+                                            end if;
+                                        else 
+
+                                            v_read_data(31 downto 0) := v_read_data(31 downto 0) - original_shares;
+
+                                            if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                state <= IDLE;
+
+                                            else 
+
+                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            state <= IDLE;
+
+                                            end if;
+
+                                        end if;
+                                    
+                                    else 
+                                    
+                                    -- undcieded what to do with overflow yet
+
+                                    end if;
+
+                                when REPLACE => 
+
+                                    if price_found = '1' then
+
+                                        if replace_run = '0' then    
+
+                                            if original_side = BUY then 
+
+                                                v_read_data(63 downto 32) := v_read_data(63 downto 32) - original_shares;
+
+                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    buckets(to_integer(original_hash)) <= v_bucket_data; 
+
+                                                else 
+                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                state <= IDLE;
+                                                
+                                                end if;
+                                            else 
+
+                                                v_read_data(31 downto 0) := v_read_data(31 downto 0) - original_shares;
+
+                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                    state <= IDLE;
+
+                                                else 
+
+                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                state <= IDLE;
+
+                                                end if;
+
+                                            end if;
+
+                                        else 
+
+                                            if replace_side = BUY then 
+
+                                                v_read_data(63 downto 32) := v_read_data(63 downto 32) + original_shares;
+
+                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    buckets(to_integer(replace_hash)) <= v_bucket_data; 
+
+                                                else 
+                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                state <= IDLE;
+                                                
+                                                end if;
+                                            else 
+
+                                                v_read_data(31 downto 0) := v_read_data(31 downto 0) + original_shares;
+
+                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    buckets(to_integer(replace_hash)) <= v_bucket_data; 
+                                                    state <= IDLE;
+
+                                                else 
+
+                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                state <= IDLE;
+
+                                                end if;
+
+                                            end if;
+
+
+                                        end if;
+                                        
+                                    else 
+                                    
+                                    -- undcieded what to do with overflow yet
+
+                                    end if;
+
+                                when DELETE =>
+
+                        end case;
 
                 end case;
 
