@@ -359,9 +359,12 @@ begin
                                             state <= IDLE;
 
                                         end if;
+
+                                        data_written <= '1';
+
                                     elsif empty_slot_found = '1' then
                                         
-                                        v_bucket_data(31 + (to_integer(empty_bucket_address) * 8)  downto (to_integer(empty_bucket_address) * 8)) := original_price;
+                                        v_bucket_data(31 + (to_integer(empty_bucket_address) * 32)  downto (to_integer(empty_bucket_address) * 32)) := original_price;
                                         buckets(to_integer(original_hash)) <= v_bucket_data;
 
                                         if original_side = BUY then 
@@ -375,6 +378,8 @@ begin
                                             state <= IDLE;
 
                                         end if;
+
+                                        data_written <= '1';
                                     else 
                                     
                                     -- undcieded what to do with overflow yet
@@ -383,7 +388,7 @@ begin
 
 
 
-                                when EXECCAN =>
+                                when EXECCAN or DELETE=>
                                         
                                     if price_found = '1' then 
 
@@ -392,7 +397,7 @@ begin
                                             v_read_data(63 downto 32) := v_read_data(63 downto 32) - original_shares;
 
                                             if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
-                                                v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                 buckets(to_integer(original_hash)) <= v_bucket_data; 
 
                                             else 
@@ -400,12 +405,14 @@ begin
                                             state <= IDLE;
                                             
                                             end if;
+
+                                            data_written <= '1';
                                         else 
 
                                             v_read_data(31 downto 0) := v_read_data(31 downto 0) - original_shares;
 
                                             if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
-                                                v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                 buckets(to_integer(original_hash)) <= v_bucket_data; 
                                                 state <= IDLE;
 
@@ -415,6 +422,8 @@ begin
                                             state <= IDLE;
 
                                             end if;
+
+                                            data_written <= '1';
 
                                         end if;
                                     
@@ -435,7 +444,7 @@ begin
                                                 v_read_data(63 downto 32) := v_read_data(63 downto 32) - original_shares;
 
                                                 if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
-                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                     buckets(to_integer(original_hash)) <= v_bucket_data; 
 
                                                 else 
@@ -448,7 +457,7 @@ begin
                                                 v_read_data(31 downto 0) := v_read_data(31 downto 0) - original_shares;
 
                                                 if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
-                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                     buckets(to_integer(original_hash)) <= v_bucket_data; 
                                                     state <= IDLE;
 
@@ -461,14 +470,16 @@ begin
 
                                             end if;
 
+                                            replace_run <= '1';
+
                                         else 
 
                                             if replace_side = BUY then 
 
-                                                v_read_data(63 downto 32) := v_read_data(63 downto 32) + original_shares;
+                                                v_read_data(63 downto 32) := v_read_data(63 downto 32) + replace_shares;
 
                                                 if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
-                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                     buckets(to_integer(replace_hash)) <= v_bucket_data; 
 
                                                 else 
@@ -478,7 +489,7 @@ begin
                                                 end if;
                                             else 
 
-                                                v_read_data(31 downto 0) := v_read_data(31 downto 0) + original_shares;
+                                                v_read_data(31 downto 0) := v_read_data(31 downto 0) + replace_shares;
 
                                                 if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
                                                     v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
@@ -492,7 +503,11 @@ begin
 
                                                 end if;
 
+                                                data_written <= '1';
+
                                             end if;
+
+                                            replace_run <= '0';
 
 
                                         end if;
@@ -503,7 +518,7 @@ begin
 
                                     end if;
 
-                                when DELETE =>
+                                
 
                         end case;
 
