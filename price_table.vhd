@@ -18,20 +18,21 @@ port (
     ask1_price   : out unsigned(31 downto 0) := (others => '0');
     ask1_shares  : out unsigned(31 downto 0) := (others => '0');
 
-    data_written : out std_logic
+    data_written : out std_logic;
+
+    bbo_price : out unsigned(47 downto 0);
+    bbo_shares : out unsigned(47 downto 0);
+    bbo_side : out unsigned(7 downto 0);
+    bbo_delete : out std_logic
 );
 end price_table;
 
 architecture rtl of price_table is
 
     ----------------------------------------------------------------
-    -- Main aggregation table: 2048 price levels, hashed + linear
-    -- probed on price.
-    --
-    -- Word layout (96 bits):
-    --   bits 95..64  : price
-    --   bits 63..32  : aggregate buy shares  at this price
-    --   bits 31..0   : aggregate sell shares at this price
+    --   price tbale
+    --   bits 95..48  : aggregate buy shares  at this price
+    --   bits 47..0   : aggregate sell shares at this price
     ----------------------------------------------------------------
     type ram_t is array (0 to 2047) of unsigned(95 downto 0);
     signal ram : ram_t := (others => (others => '0'));
@@ -83,7 +84,6 @@ architecture rtl of price_table is
     signal empty_slot_found : std_logic;
     signal empty_bucket_address : unsigned(2 downto 0);
     signal price_found_bucket_address : unsigned(2 downto 0);
-
 
 begin
 
@@ -348,17 +348,23 @@ begin
 
                                         if original_side = BUY then 
 
-                                            v_read_data(63 downto 32) := v_read_data(63 downto 32) + original_shares;
+                                            v_read_data(95 downto 48) := v_read_data(95 downto 48) + resize(original_shares, 48);
                                             ram(to_integer(price_table_address)) <= v_read_data;
+                                            bbo_shares <= v_read_data(95 downto 48);
                                             state <= IDLE;
 
                                         else 
 
-                                            v_read_data(31 downto 0) := v_read_data(31 downto 0) + original_shares;
+                                            v_read_data(47 downto 0) := v_read_data(47 downto 0) + resize(original_shares, 48);
                                             ram(to_integer(price_table_address)) <= v_read_data;
+                                            bbo_shares <= v_read_data(47 downto 0);
                                             state <= IDLE;
 
                                         end if;
+
+                                        bbo_price <= original_price;
+                                        bbo_side <= original_side;
+                                        bbo_delete <= '0';
 
                                         data_written <= '1';
 
@@ -369,17 +375,21 @@ begin
 
                                         if original_side = BUY then 
 
-                                            ram(to_integer(empty_slot_address)) <= original_price & original_shares & (others => '0');
+                                            ram(to_integer(empty_slot_address)) <=  resize(original_shares, 48) & (others => '0');
                                             state <= IDLE;
 
                                         else 
 
-                                            ram(to_integer(empty_slot_address)) <= original_price & (others => '0') & original_shares ;
+                                            ram(to_integer(empty_slot_address)) <= (others => '0') & resize(original_shares, 48) ;
                                             state <= IDLE;
 
                                         end if;
 
                                         data_written <= '1';
+                                        bbo_price <= original_price;
+                                        bbo_shares <= original_shares;
+                                        bbo_side <= original_side;
+                                        bbo_delete <= '0';
                                     else 
                                     
                                     -- undcieded what to do with overflow yet
@@ -388,20 +398,31 @@ begin
 
 
 
-                                when EXECCAN or DELETE=>
+                                when EXECCAN | DELETE=>
                                         
                                     if price_found = '1' then 
 
                                         if original_side = BUY then 
 
-                                            v_read_data(63 downto 32) := v_read_data(63 downto 32) - original_shares;
+                                            v_read_data(95 downto 48) := v_read_data(95 downto 48) - resize(original_shares, 48);
 
-                                            if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                            if v_read_data(95 downto 48) = (others => '0') then 
+                                                bbo_price <= original_price;
+                                                bbo_delete <= '1';
+                                                bbo_side <= original_side;
+                                            end if;
+
+                                            if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
                                                 v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                 buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                state <= IDLE;
 
                                             else 
                                             ram(to_integer(price_table_address)) <= v_read_data;
+                                            bbo_price <= original_price;
+                                            bbo_shares <= v_read_data(95 downto 48);
+                                            bbo_side <= original_side;
+                                            bbo_delete <= '0';
                                             state <= IDLE;
                                             
                                             end if;
@@ -409,9 +430,15 @@ begin
                                             data_written <= '1';
                                         else 
 
-                                            v_read_data(31 downto 0) := v_read_data(31 downto 0) - original_shares;
+                                            v_read_data(47 downto 0) := v_read_data(47 downto 0) - resize(original_shares, 48);
 
-                                            if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                            if v_read_data(47 downto 0) = (others => '0') then 
+                                                bbo_price <= original_price;
+                                                bbo_delete <= '1';
+                                                bbo_side <= original_side;
+                                            end if;
+
+                                            if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
                                                 v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                 buckets(to_integer(original_hash)) <= v_bucket_data; 
                                                 state <= IDLE;
@@ -419,6 +446,10 @@ begin
                                             else 
 
                                             ram(to_integer(price_table_address)) <= v_read_data;
+                                            bbo_price <= original_price;
+                                            bbo_shares <= v_read_data(47 downto 0);
+                                            bbo_side <= original_side;
+                                            bbo_delete <= '0';
                                             state <= IDLE;
 
                                             end if;
@@ -435,36 +466,56 @@ begin
 
                                 when REPLACE => 
 
-                                    if price_found = '1' then
+                                    if replace_run = '0' then 
 
-                                        if replace_run = '0' then    
+                                        if price_found = '1' then   
 
                                             if original_side = BUY then 
 
-                                                v_read_data(63 downto 32) := v_read_data(63 downto 32) - original_shares;
+                                                v_read_data(95 downto 48) := v_read_data(95 downto 48) - resize(original_shares, 48);
 
-                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                if v_read_data(95 downto 48) = (others => '0') then 
+                                                    bbo_price <= original_price;
+                                                    bbo_delete <= '1';
+                                                    bbo_side <= original_side;
+                                                end if;
+
+                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
                                                     v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                     buckets(to_integer(original_hash)) <= v_bucket_data; 
-
+                                                    state <= READ_BUCKETS;
                                                 else 
-                                                ram(to_integer(price_table_address)) <= v_read_data;
-                                                state <= IDLE;
+                                                    ram(to_integer(price_table_address)) <= v_read_data;
+                                                    bbo_price <= original_price;
+                                                    bbo_shares <= v_read_data(95 downto 48);
+                                                    bbo_side <= original_side;
+                                                    bbo_delete <= '0';
+                                                    state <= READ_BUCKETS;
                                                 
                                                 end if;
                                             else 
 
-                                                v_read_data(31 downto 0) := v_read_data(31 downto 0) - original_shares;
+                                                v_read_data(47 downto 0) := v_read_data(47 downto 0) - resize(original_shares, 48);
 
-                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                if v_read_data(47 downto 0) = (others => '0') then 
+                                                    bbo_price <= original_price;
+                                                    bbo_delete <= '1';
+                                                    bbo_side <= original_side;
+                                                end if;
+
+                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
                                                     v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                     buckets(to_integer(original_hash)) <= v_bucket_data; 
-                                                    state <= IDLE;
+                                                    state <= READ_BUCKETS;
 
                                                 else 
 
-                                                ram(to_integer(price_table_address)) <= v_read_data;
-                                                state <= IDLE;
+                                                    ram(to_integer(price_table_address)) <= v_read_data;
+                                                    bbo_price <= original_price;
+                                                    bbo_shares <= v_read_data(47 downto 0);
+                                                    bbo_side <= original_side;
+                                                    bbo_delete <= '0';
+                                                    state <= READ_BUCKETS;
 
                                                 end if;
 
@@ -476,10 +527,11 @@ begin
 
                                             if replace_side = BUY then 
 
-                                                v_read_data(63 downto 32) := v_read_data(63 downto 32) + replace_shares;
+                                                v_read_data(95 downto 48) := v_read_data(95 downto 48) + resize(replace_shares, 48);
 
-                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
+                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
                                                     v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
+                                                    
                                                     buckets(to_integer(replace_hash)) <= v_bucket_data; 
 
                                                 else 
@@ -489,10 +541,10 @@ begin
                                                 end if;
                                             else 
 
-                                                v_read_data(31 downto 0) := v_read_data(31 downto 0) + replace_shares;
+                                                v_read_data(47 downto 0) := v_read_data(47 downto 0) + resize(replace_shares, 48);
 
-                                                if v_read_data(63 downto 32) = (others => '0') and v_read_data(31 downto 0) = (others => '0') then
-                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 8)  downto (to_integer(price_found_bucket_address) * 8)) := (others => '0');
+                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
+                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
                                                     buckets(to_integer(replace_hash)) <= v_bucket_data; 
                                                     state <= IDLE;
 
@@ -503,18 +555,70 @@ begin
 
                                                 end if;
 
-                                                data_written <= '1';
+                                                
 
                                             end if;
 
                                             replace_run <= '0';
+                                            data_written <= '1';
 
 
                                         end if;
                                         
-                                    else 
+                                    else
                                     
-                                    -- undcieded what to do with overflow yet
+                                        if price_found = '1' then 
+
+                                            if original_side = BUY then 
+
+                                                v_read_data(95 downto 48) := v_read_data(95 downto 48) + resize(replace_shares, 48);
+                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                bbo_shares <= v_read_data(95 downto 48);
+                                                state <= IDLE;
+
+                                            else 
+
+                                                v_read_data(47 downto 0) := v_read_data(47 downto 0) + resize(replace_shares, 48);
+                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                bbo_shares <= v_read_data(47 downto 0);
+                                                state <= IDLE;
+
+                                            end if;
+
+                                            bbo_price <= replace_price;
+                                            bbo_side <= replace_side;
+                                            bbo_delete <= '0';
+
+                                            data_written <= '1';
+
+                                        elsif empty_slot_found = '1' then
+                                            
+                                            v_bucket_data(31 + (to_integer(empty_bucket_address) * 32)  downto (to_integer(empty_bucket_address) * 32)) := replace_price;
+                                            buckets(to_integer(original_hash)) <= v_bucket_data;
+
+                                            if original_side = BUY then 
+
+                                                ram(to_integer(empty_slot_address)) <=  resize(replace_shares, 48) & (others => '0');
+                                                state <= IDLE;
+
+                                            else 
+
+                                                ram(to_integer(empty_slot_address)) <= (others => '0') & resize(replace_shares, 48) ;
+                                                state <= IDLE;
+
+                                            end if;
+
+                                            data_written <= '1';
+                                            bbo_price <= replace_price;
+                                            bbo_shares <= replace_shares;
+                                            bbo_side <= replace_side;
+                                            bbo_delete <= '0';
+                                        else 
+                                        
+                                        -- undcieded what to do with overflow yet
+
+                                        end if;
+                                    
 
                                     end if;
 
