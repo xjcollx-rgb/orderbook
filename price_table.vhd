@@ -39,6 +39,17 @@ architecture rtl of price_table is
     attribute ram_style of buckets : signal is "block";
 
     ----------------------------------------------------------------
+    -- Single canonical write port for ram / buckets (BRAM inference)
+    ----------------------------------------------------------------
+    signal ram_we    : std_logic;
+    signal ram_waddr : unsigned(10 downto 0);
+    signal ram_wdata : unsigned(95 downto 0);
+
+    signal buckets_we    : std_logic;
+    signal buckets_waddr : unsigned(7 downto 0);
+    signal buckets_wdata : unsigned(255 downto 0);
+
+    ----------------------------------------------------------------
     -- State machine
     ----------------------------------------------------------------
     type state_t is (IDLE, READ_BUCKETS, CHECK, READ_PRICE_TABLE, WRITE_PRICE_TABLE);
@@ -93,6 +104,9 @@ begin
 
             else
 
+                ram_we     <= '0';
+                buckets_we <= '0';
+
                 case state is
 
                     when IDLE =>
@@ -137,42 +151,42 @@ begin
 
 
                         if replace_run = '0' then 
-                            if bucket_data(31 downto 0) = (others => '0') then 
+                            if bucket_data(31 downto 0) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000");
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "000";
 
-                            elsif bucket_data(63 downto 32 ) = (others => '0') then 
+                            elsif bucket_data(63 downto 32 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 1;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "001";
 
-                            elsif bucket_data(95 downto 64 ) = (others => '0') then 
+                            elsif bucket_data(95 downto 64 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 2;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "010";
 
-                            elsif bucket_data(127 downto 96 ) = (others => '0') then 
+                            elsif bucket_data(127 downto 96 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 3;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "011";
 
-                            elsif bucket_data(159 downto 128) = (others => '0') then 
+                            elsif bucket_data(159 downto 128) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 4;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "100";
 
-                            elsif bucket_data(191 downto 160 ) = (others => '0') then 
+                            elsif bucket_data(191 downto 160 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 5;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "101";
 
-                            elsif bucket_data(223 downto 192) = (others => '0') then 
+                            elsif bucket_data(223 downto 192) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 6;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "110";
 
-                            elsif bucket_data(255 downto 224 ) = (others => '0') then 
+                            elsif bucket_data(255 downto 224 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (original_hash & "000") + 7;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "111";
@@ -233,42 +247,42 @@ begin
 
                         else 
 
-                            if bucket_data(31 downto 0) = (others => '0') then 
+                            if bucket_data(31 downto 0) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000");
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "000";
 
-                            elsif bucket_data(63 downto 32 ) = (others => '0') then 
+                            elsif bucket_data(63 downto 32 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 1;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "001";
 
-                            elsif bucket_data(95 downto 64 ) = (others => '0') then 
+                            elsif bucket_data(95 downto 64 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 2;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "010";
 
-                            elsif bucket_data(127 downto 96 ) = (others => '0') then 
+                            elsif bucket_data(127 downto 96 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 3;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "011";
 
-                            elsif bucket_data(159 downto 128) = (others => '0') then 
+                            elsif bucket_data(159 downto 128) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 4;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "100";
 
-                            elsif bucket_data(191 downto 160 ) = (others => '0') then 
+                            elsif bucket_data(191 downto 160 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 5;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "101";
 
-                            elsif bucket_data(223 downto 192) = (others => '0') then 
+                            elsif bucket_data(223 downto 192) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 6;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "110";
 
-                            elsif bucket_data(255 downto 224 ) = (others => '0') then 
+                            elsif bucket_data(255 downto 224 ) = to_unsigned(0,32) then 
                                 empty_slot_address <= (replace_hash & "000") + 7;
                                 empty_slot_found <= '1';
                                 empty_bucket_address <= "111";
@@ -352,14 +366,18 @@ begin
                                         if original_side = BUY then 
 
                                             v_read_data(95 downto 48) := v_read_data(95 downto 48) + resize(original_shares, 48);
-                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            ram_we    <= '1';
+                                            ram_waddr <= price_table_address;
+                                            ram_wdata <= v_read_data;
                                             bbo_shares <= v_read_data(95 downto 48);
                                             state <= IDLE;
 
                                         else 
 
                                             v_read_data(47 downto 0) := v_read_data(47 downto 0) + resize(original_shares, 48);
-                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            ram_we    <= '1';
+                                            ram_waddr <= price_table_address;
+                                            ram_wdata <= v_read_data;
                                             bbo_shares <= v_read_data(47 downto 0);
                                             state <= IDLE;
 
@@ -374,16 +392,22 @@ begin
                                     elsif empty_slot_found = '1' then
                                         
                                         v_bucket_data(31 + (to_integer(empty_bucket_address) * 32)  downto (to_integer(empty_bucket_address) * 32)) := original_price;
-                                        buckets(to_integer(original_hash)) <= v_bucket_data;
+                                        buckets_we    <= '1';
+                                        buckets_waddr <= original_hash;
+                                        buckets_wdata <= v_bucket_data;
 
                                         if original_side = BUY then 
 
-                                            ram(to_integer(empty_slot_address)) <=  resize(original_shares, 48) & (others => '0');
+                                            ram_we    <= '1';
+                                            ram_waddr <= empty_slot_address;
+                                            ram_wdata <= resize(original_shares, 48) & to_unsigned(0, 48);
                                             state <= IDLE;
 
                                         else 
 
-                                            ram(to_integer(empty_slot_address)) <= (others => '0') & resize(original_shares, 48) ;
+                                            ram_we    <= '1';
+                                            ram_waddr <= empty_slot_address;
+                                            ram_wdata <= to_unsigned(0,48) & resize(original_shares, 48);
                                             state <= IDLE;
 
                                         end if;
@@ -409,19 +433,23 @@ begin
 
                                             v_read_data(95 downto 48) := v_read_data(95 downto 48) - resize(original_shares, 48);
 
-                                            if v_read_data(95 downto 48) = (others => '0') then 
+                                            if v_read_data(95 downto 48) = to_unsigned(0,48) then 
                                                 bbo_price <= original_price;
                                                 bbo_delete <= '1';
                                                 bbo_side <= original_side;
                                             end if;
 
-                                            if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
+                                            if v_read_data(95 downto 48) = to_unsigned(0,48) and v_read_data(47 downto 0) = to_unsigned(0,48) then
                                                 v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
-                                                buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                buckets_we    <= '1';
+                                                buckets_waddr <= original_hash;
+                                                buckets_wdata <= v_bucket_data;
                                                 state <= IDLE;
 
                                             else 
-                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            ram_we    <= '1';
+                                            ram_waddr <= price_table_address;
+                                            ram_wdata <= v_read_data;
                                             bbo_price <= original_price;
                                             bbo_shares <= v_read_data(95 downto 48);
                                             bbo_side <= original_side;
@@ -435,20 +463,24 @@ begin
 
                                             v_read_data(47 downto 0) := v_read_data(47 downto 0) - resize(original_shares, 48);
 
-                                            if v_read_data(47 downto 0) = (others => '0') then 
+                                            if v_read_data(47 downto 0) = to_unsigned(0,48) then 
                                                 bbo_price <= original_price;
                                                 bbo_delete <= '1';
                                                 bbo_side <= original_side;
                                             end if;
 
-                                            if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
+                                            if v_read_data(95 downto 48) = to_unsigned(0,48) and v_read_data(47 downto 0) = to_unsigned(0,48) then
                                                 v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
-                                                buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                buckets_we    <= '1';
+                                                buckets_waddr <= original_hash;
+                                                buckets_wdata <= v_bucket_data;
                                                 state <= IDLE;
 
                                             else 
 
-                                            ram(to_integer(price_table_address)) <= v_read_data;
+                                            ram_we    <= '1';
+                                            ram_waddr <= price_table_address;
+                                            ram_wdata <= v_read_data;
                                             bbo_price <= original_price;
                                             bbo_shares <= v_read_data(47 downto 0);
                                             bbo_side <= original_side;
@@ -477,18 +509,22 @@ begin
 
                                                 v_read_data(95 downto 48) := v_read_data(95 downto 48) - resize(original_shares, 48);
 
-                                                if v_read_data(95 downto 48) = (others => '0') then 
+                                                if v_read_data(95 downto 48) = to_unsigned(0,48) then 
                                                     bbo_price <= original_price;
                                                     bbo_delete <= '1';
                                                     bbo_side <= original_side;
                                                 end if;
 
-                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
+                                                if v_read_data(95 downto 48) = to_unsigned(0,48) and v_read_data(47 downto 0) = to_unsigned(0,48) then
                                                     v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
-                                                    buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                    buckets_we    <= '1';
+                                                    buckets_waddr <= original_hash;
+                                                    buckets_wdata <= v_bucket_data;
                                                     state <= READ_BUCKETS;
                                                 else 
-                                                    ram(to_integer(price_table_address)) <= v_read_data;
+                                                    ram_we    <= '1';
+                                                    ram_waddr <= price_table_address;
+                                                    ram_wdata <= v_read_data;
                                                     bbo_price <= original_price;
                                                     bbo_shares <= v_read_data(95 downto 48);
                                                     bbo_side <= original_side;
@@ -500,20 +536,24 @@ begin
 
                                                 v_read_data(47 downto 0) := v_read_data(47 downto 0) - resize(original_shares, 48);
 
-                                                if v_read_data(47 downto 0) = (others => '0') then 
+                                                if v_read_data(47 downto 0) = to_unsigned(0,48) then 
                                                     bbo_price <= original_price;
                                                     bbo_delete <= '1';
                                                     bbo_side <= original_side;
                                                 end if;
 
-                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
+                                                if v_read_data(95 downto 48) = to_unsigned(0,48) and v_read_data(47 downto 0) = to_unsigned(0,48) then
                                                     v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
-                                                    buckets(to_integer(original_hash)) <= v_bucket_data; 
+                                                    buckets_we    <= '1';
+                                                    buckets_waddr <= original_hash;
+                                                    buckets_wdata <= v_bucket_data;
                                                     state <= READ_BUCKETS;
 
                                                 else 
 
-                                                    ram(to_integer(price_table_address)) <= v_read_data;
+                                                    ram_we    <= '1';
+                                                    ram_waddr <= price_table_address;
+                                                    ram_wdata <= v_read_data;
                                                     bbo_price <= original_price;
                                                     bbo_shares <= v_read_data(47 downto 0);
                                                     bbo_side <= original_side;
@@ -538,14 +578,18 @@ begin
                                             if original_side = BUY then 
 
                                                 v_read_data(95 downto 48) := v_read_data(95 downto 48) + resize(replace_shares, 48);
-                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                ram_we    <= '1';
+                                                ram_waddr <= price_table_address;
+                                                ram_wdata <= v_read_data;
                                                 bbo_shares <= v_read_data(95 downto 48);
                                                 state <= IDLE;
 
                                             else 
 
                                                 v_read_data(47 downto 0) := v_read_data(47 downto 0) + resize(replace_shares, 48);
-                                                ram(to_integer(price_table_address)) <= v_read_data;
+                                                ram_we    <= '1';
+                                                ram_waddr <= price_table_address;
+                                                ram_wdata <= v_read_data;
                                                 bbo_shares <= v_read_data(47 downto 0);
                                                 state <= IDLE;
 
@@ -560,16 +604,22 @@ begin
                                         elsif empty_slot_found = '1' then
                                             
                                             v_bucket_data(31 + (to_integer(empty_bucket_address) * 32)  downto (to_integer(empty_bucket_address) * 32)) := replace_price;
-                                            buckets(to_integer(replace_hash)) <= v_bucket_data;
+                                            buckets_we    <= '1';
+                                            buckets_waddr <= replace_hash;
+                                            buckets_wdata <= v_bucket_data;
 
                                             if original_side = BUY then 
 
-                                                ram(to_integer(empty_slot_address)) <=  resize(replace_shares, 48) & (others => '0');
+                                                ram_we    <= '1';
+                                                ram_waddr <= empty_slot_address;
+                                                ram_wdata <= resize(replace_shares, 48) & to_unsigned(0, 48);
                                                 state <= IDLE;
 
                                             else 
 
-                                                ram(to_integer(empty_slot_address)) <= (others => '0') & resize(replace_shares, 48) ;
+                                                ram_we    <= '1';
+                                                ram_waddr <= empty_slot_address;
+                                                ram_wdata <= to_unsigned(0, 48) & resize(replace_shares, 48);
                                                 state <= IDLE;
 
                                             end if;
@@ -593,6 +643,14 @@ begin
                         end case;
 
                 end case;
+
+                if ram_we = '1' then
+                    ram(to_integer(ram_waddr)) <= ram_wdata;
+                end if;
+
+                if buckets_we = '1' then
+                    buckets(to_integer(buckets_waddr)) <= buckets_wdata;
+                end if;
 
             end if;
 
