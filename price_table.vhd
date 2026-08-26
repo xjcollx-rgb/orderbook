@@ -11,16 +11,9 @@ port (
     frame_type_in   : in unsigned(1 downto 0);
     fifo_empty : in  std_logic; 
 
-
-    bid1_price   : out unsigned(31 downto 0) := (others => '0');
-    bid1_shares  : out unsigned(31 downto 0) := (others => '0');
-
-    ask1_price   : out unsigned(31 downto 0) := (others => '0');
-    ask1_shares  : out unsigned(31 downto 0) := (others => '0');
-
     data_written : out std_logic;
 
-    bbo_price : out unsigned(47 downto 0);
+    bbo_price : out unsigned(31 downto 0);
     bbo_shares : out unsigned(47 downto 0);
     bbo_side : out unsigned(7 downto 0);
     bbo_delete : out std_logic
@@ -43,8 +36,7 @@ architecture rtl of price_table is
     attribute ram_style : string;
     attribute ram_style of ram : signal is "block";
 
-    attribute bucket_style : string;
-    attribute bucket_style of buckets : signal is "block";
+    attribute ram_style of buckets : signal is "block";
 
     ----------------------------------------------------------------
     -- State machine
@@ -110,6 +102,7 @@ begin
                         empty_slot_address <= (others => '0');
                         price_found <= '0';
                         price_table_address <= (others => '0');
+                        replace_run <= '0';
 
 
                         if fifo_empty = '0' then
@@ -243,34 +236,42 @@ begin
                             if bucket_data(31 downto 0) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000");
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "000";
 
                             elsif bucket_data(63 downto 32 ) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 1;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "001";
 
                             elsif bucket_data(95 downto 64 ) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 2;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "010";
 
                             elsif bucket_data(127 downto 96 ) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 3;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "011";
 
                             elsif bucket_data(159 downto 128) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 4;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "100";
 
                             elsif bucket_data(191 downto 160 ) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 5;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "101";
 
                             elsif bucket_data(223 downto 192) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 6;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "110";
 
                             elsif bucket_data(255 downto 224 ) = (others => '0') then 
                                 empty_slot_address <= (replace_hash & "000") + 7;
                                 empty_slot_found <= '1';
+                                empty_bucket_address <= "111";
                             end if;
 
                         
@@ -339,6 +340,8 @@ begin
 
                             v_read_data := read_data;
                             v_bucket_data := bucket_data;
+                            empty_slot_found <= '0';
+                            price_found <= '0';
 
                         case frame_type_in is 
 
@@ -387,7 +390,7 @@ begin
 
                                         data_written <= '1';
                                         bbo_price <= original_price;
-                                        bbo_shares <= original_shares;
+                                        bbo_shares <= resize(original_shares, 48);
                                         bbo_side <= original_side;
                                         bbo_delete <= '0';
                                     else 
@@ -460,7 +463,7 @@ begin
                                     
                                     else 
                                     
-                                    -- undcieded what to do with overflow yet
+                                    -- undcieded what to do with unfound replace/delete/cancel yet
 
                                     end if;
 
@@ -525,44 +528,7 @@ begin
 
                                         else 
 
-                                            if replace_side = BUY then 
-
-                                                v_read_data(95 downto 48) := v_read_data(95 downto 48) + resize(replace_shares, 48);
-
-                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
-                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
-                                                    
-                                                    buckets(to_integer(replace_hash)) <= v_bucket_data; 
-
-                                                else 
-                                                ram(to_integer(price_table_address)) <= v_read_data;
-                                                state <= IDLE;
-                                                
-                                                end if;
-                                            else 
-
-                                                v_read_data(47 downto 0) := v_read_data(47 downto 0) + resize(replace_shares, 48);
-
-                                                if v_read_data(95 downto 48) = (others => '0') and v_read_data(47 downto 0) = (others => '0') then
-                                                    v_bucket_data(31 + (to_integer(price_found_bucket_address) * 32)  downto (to_integer(price_found_bucket_address) * 32)) := (others => '0');
-                                                    buckets(to_integer(replace_hash)) <= v_bucket_data; 
-                                                    state <= IDLE;
-
-                                                else 
-
-                                                ram(to_integer(price_table_address)) <= v_read_data;
-                                                state <= IDLE;
-
-                                                end if;
-
-                                                
-
-                                            end if;
-
-                                            replace_run <= '0';
-                                            data_written <= '1';
-
-
+                                            -- has to exsits for a replace order, not sure what to do here
                                         end if;
                                         
                                     else
@@ -594,7 +560,7 @@ begin
                                         elsif empty_slot_found = '1' then
                                             
                                             v_bucket_data(31 + (to_integer(empty_bucket_address) * 32)  downto (to_integer(empty_bucket_address) * 32)) := replace_price;
-                                            buckets(to_integer(original_hash)) <= v_bucket_data;
+                                            buckets(to_integer(replace_hash)) <= v_bucket_data;
 
                                             if original_side = BUY then 
 
@@ -610,7 +576,7 @@ begin
 
                                             data_written <= '1';
                                             bbo_price <= replace_price;
-                                            bbo_shares <= replace_shares;
+                                            bbo_shares <= resize(replace_shares, 48);
                                             bbo_side <= replace_side;
                                             bbo_delete <= '0';
                                         else 
