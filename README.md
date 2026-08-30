@@ -41,7 +41,6 @@ The parser currently supports:
 * Cancel Order
 * Execute Order
 * Replace Order
-* Trade
 
 The input is streamed as 64-bit words. The current design assumes valid market data and that frames are either back-to-back or begin at the start of a 64-bit input word.
 
