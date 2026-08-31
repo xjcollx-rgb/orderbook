@@ -164,7 +164,7 @@ Timing optimisation is an ongoing part of the project, with increasing the achie
 
 The architecture is designed as a pipelined streaming system.
 
-The current estimated average processing latency is approximately:
+The current estimated average processing latency (from full payload recieved to BBO) is approximately:
 
 ```text
 ~20 clock cycles
