@@ -125,7 +125,7 @@ The current synthesis uses:
 
 or approximately **96% of the available block RAM** on the target device.
 
-Other FPGA resource utilisation is currently below 10%.
+LUTS and DSP slices yet to be fully determined.
 
 ## Target Hardware
 
