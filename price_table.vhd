@@ -16,7 +16,12 @@ port (
     bbo_price : out unsigned(31 downto 0);
     bbo_shares : out unsigned(47 downto 0);
     bbo_side : out unsigned(7 downto 0);
-    bbo_delete : out std_logic
+    bbo_delete : out std_logic;
+
+    buy_rescan_in : in std_logic;
+    sell_rescan_in : in std_logic;
+
+    rescan_out : out std_logic
 );
 end price_table;
 
@@ -52,7 +57,7 @@ architecture rtl of price_table is
     ----------------------------------------------------------------
     -- State machine
     ----------------------------------------------------------------
-    type state_t is (IDLE, READ_BUCKETS, CHECK, READ_PRICE_TABLE, WRITE_PRICE_TABLE);
+    type state_t is (IDLE, READ_BUCKETS, CHECK, READ_PRICE_TABLE, WRITE_PRICE_TABLE, RESCAN_PRICES, RESCAN_SHARES);
     signal state : state_t := IDLE;
 
     -- Operation types
@@ -88,6 +93,18 @@ architecture rtl of price_table is
     signal empty_bucket_address : unsigned(2 downto 0);
     signal price_found_bucket_address : unsigned(2 downto 0);
 
+    --rescan stuff 
+    signal buy_rescan_reg : std_logic;
+    signal sell_rescan_reg : std_logic;
+    signal rescan_buckets_data : unsigned(255 downto 0);
+    signal rescan_price_address : unsigned(109 downto 0);
+    signal rescan_buckets_counter : unsigned(255 downto 0);
+
+    signal rescan_price_address_return : unsigned(109 downto 0);
+    signal rescan_price_count : unsigned(4 downto 0);
+    signal rescan_share_out : unsigned(47 downto 0);
+    --signal rescan_shares_data : unsigned(96 downto 0);
+
 begin
 
 
@@ -117,6 +134,13 @@ begin
                         price_found <= '0';
                         price_table_address <= (others => '0');
                         replace_run <= '0';
+                        rescan_out <= '0';
+
+                        if (buy_rescan_reg = '1') or (sell_rescan_reg = '1') then 
+
+                            state <= RESCAN_PRICES;
+
+                        end if;
 
 
                         if fifo_empty = '0' then
@@ -632,6 +656,7 @@ begin
                                         else 
                                         
                                         -- undcieded what to do with overflow yet
+                                        -- going to rehash to another bucket
 
                                         end if;
                                     
@@ -641,6 +666,48 @@ begin
                                 
 
                         end case;
+
+                when RESCAN_PRICES => 
+
+                    rescan_out <= '1';
+
+                    rescan_buckets_data <= buckets(to_integer(rescan_buckets_counter));
+
+                    for i in 0 to 7 loop
+                        
+                        rescan_price_address((11 * i) + 10 downto 11 * i) <= (rescan_buckets_counter & "000") + i; 
+
+                    end loop;
+
+                    rescan_buckets_counter <= rescan_buckets_counter + 1;
+
+                    if rescan_buckets_counter >= 255 then 
+
+                        state <= RESCAN_SHARES;
+                    
+                    end if;
+
+                        
+
+                when RESCAN_SHARES =>  
+
+                        if buy_rescan_reg = '1' then 
+
+                            rescan_share_out <= ram(to_integer(rescan_price_address(to_integer(11 * rescan_price_count) + 10 downto to_integer(11 * rescan_price_count))))(47 downto 0);
+                        elsif sell_rescan_reg = '1' then 
+
+                            rescan_share_out <= ram(to_integer(rescan_price_address(to_integer(11 * rescan_price_count) + 10 downto to_integer(11 * rescan_price_count))))(95 downto 48);
+
+                        end if;
+
+                        rescan_price_count <= rescan_price_count + 1;
+
+                        if rescan_price_count >= 9 then 
+
+                            state <= IDLE;
+                            
+                        end if;
+                        
 
                 end case;
 
@@ -652,7 +719,11 @@ begin
                     buckets(to_integer(buckets_waddr)) <= buckets_wdata;
                 end if;
 
+                buy_rescan_reg <= buy_rescan_in;
+                sell_rescan_reg <= sell_rescan_in;
+
             end if;
+            
 
         end if;
 
