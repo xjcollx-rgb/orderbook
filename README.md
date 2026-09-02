@@ -90,6 +90,14 @@ and stores the aggregated share quantity for each price level.
 
 This bucketed structure reduces the amount of searching required when locating a price level while keeping the price-level storage separate from the order-level reference table.
 
+XOR-fold hashing: prices are mapped to one of 256 buckets by XORing the low byte with the next byte
+
+Cheap and fast: pure combinational logic (no multiplier/DSP), so it adds zero pipeline latency to the price-table lookup
+
+Good enough distribution: Using claude to simulate different hashing types, XOR showed it performs on par with more complex multiplicative hashing
+
+Right trade-off for this design: with BRAM already at 96% utilisation, saving DSP/LUT resources mattered more than the marginal robustness a heavier hash would add
+
 ### BBO Generation
 
 The system maintains the top 10 price levels on **both the bid and ask sides**.
@@ -156,7 +164,7 @@ Timing optimisation is an ongoing part of the project, with increasing the achie
 
 The architecture is designed as a pipelined streaming system.
 
-The current estimated average processing latency is approximately:
+The current estimated average processing latency (from full payload recieved to BBO) is approximately:
 
 ```text
 ~20 clock cycles
