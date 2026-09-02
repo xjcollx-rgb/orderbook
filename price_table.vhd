@@ -21,7 +21,23 @@ port (
     buy_rescan_in : in std_logic;
     sell_rescan_in : in std_logic;
 
-    rescan_out : out std_logic
+    rescan_out : out std_logic;
+
+    -- rescan phase 1: burst of one bucket (8 price/address pairs) per cycle to BBO
+    rescan_bucket_prices : out unsigned(255 downto 0);
+    rescan_bucket_addrs  : out unsigned(87 downto 0);
+    rescan_bucket_valid  : out std_logic;
+    rescan_last_bucket   : out std_logic;
+    rescan_buckets_processed_out : in std_logic;
+
+    -- BBO's sorted top 10 addresses, returned once ready
+    top10_addr_in  : in unsigned(109 downto 0);
+    top10_valid_in : in std_logic;
+
+    -- rescan phase 2: one share value per cycle back to BBO
+    rescan_share_out   : out unsigned(47 downto 0);
+    rescan_share_valid : out std_logic;
+    rescan_share_last  : out std_logic
 );
 end price_table;
 
@@ -57,7 +73,7 @@ architecture rtl of price_table is
     ----------------------------------------------------------------
     -- State machine
     ----------------------------------------------------------------
-    type state_t is (IDLE, READ_BUCKETS, CHECK, READ_PRICE_TABLE, WRITE_PRICE_TABLE, RESCAN_PRICES, RESCAN_SHARES);
+    type state_t is (IDLE, READ_BUCKETS, CHECK, READ_PRICE_TABLE, WRITE_PRICE_TABLE, RESCAN_PRICES, RESCAN_WAIT, RESCAN_SHARES);
     signal state : state_t := IDLE;
 
     -- Operation types
@@ -80,6 +96,11 @@ architecture rtl of price_table is
     signal replace_shares : unsigned(31 downto 0);
     signal replace_side : unsigned(7 downto 0);
     signal replace_run : std_logic;
+    -- Second hash (rehash) support for collision resolution
+    signal original_hash2 : unsigned(7 downto 0);
+    signal replace_hash2  : unsigned(7 downto 0);
+    signal hash_attempts  : unsigned(2 downto 0) := (others => '0');
+    constant MAX_HASH_ATTEMPTS : unsigned(2 downto 0) := "001";
     signal bucket_data : unsigned(255 downto 0);
     signal price_table_address : unsigned(10 downto 0);
     signal read_data : unsigned(95 downto 0);
@@ -94,16 +115,13 @@ architecture rtl of price_table is
     signal price_found_bucket_address : unsigned(2 downto 0);
 
     --rescan stuff 
-    signal buy_rescan_reg : std_logic;
-    signal sell_rescan_reg : std_logic;
-    signal rescan_buckets_data : unsigned(255 downto 0);
-    signal rescan_price_address : unsigned(109 downto 0);
-    signal rescan_buckets_counter : unsigned(255 downto 0);
-
-    signal rescan_price_address_return : unsigned(109 downto 0);
-    signal rescan_price_count : unsigned(4 downto 0);
-    signal rescan_share_out : unsigned(47 downto 0);
-    --signal rescan_shares_data : unsigned(96 downto 0);
+    signal buy_rescan_pending : std_logic := '0';
+    signal sell_rescan_pending : std_logic := '0';
+    signal rescan_side_is_buy : std_logic;
+    signal rescan_buckets_counter : unsigned(7 downto 0) := (others => '0');
+    signal rescan_top10_addr : unsigned(109 downto 0);
+    signal rescan_price_count : unsigned(3 downto 0) := (others => '0');
+    signal rescan_buckets_processed : std_logic;
 
 begin
 
@@ -123,6 +141,10 @@ begin
 
                 ram_we     <= '0';
                 buckets_we <= '0';
+                rescan_bucket_valid <= '0';
+                rescan_last_bucket  <= '0';
+                rescan_share_valid  <= '0';
+                rescan_share_last   <= '0';
 
                 case state is
 
@@ -135,9 +157,14 @@ begin
                         price_table_address <= (others => '0');
                         replace_run <= '0';
                         rescan_out <= '0';
+                        hash_attempts <= (others => '0');
 
-                        if (buy_rescan_reg = '1') or (sell_rescan_reg = '1') then 
+                        if (buy_rescan_pending = '1') or (sell_rescan_pending = '1') then 
 
+                            rescan_side_is_buy     <= buy_rescan_pending;
+                            buy_rescan_pending      <= '0';
+                            sell_rescan_pending     <= '0';
+                            rescan_buckets_counter  <= (others => '0');
                             state <= RESCAN_PRICES;
 
                         end if;
@@ -149,11 +176,13 @@ begin
                             original_price <= price_table(31 downto 0);
                             original_shares <= price_table(63 downto 32);
                             original_side <= price_table(71 downto 64);
+                            original_hash2 <= (price_table(7 downto 0) xor price_table(23 downto 16)) + (price_table(15 downto 8) xor price_table(31 downto 24));
 
                             replace_hash <= price_table(79 downto 72) xor price_table(87 downto 80) xor price_table(95 downto 88) xor price_table(103 downto 96);
                             replace_price <= price_table(103 downto 72);
                             replace_shares <= price_table(135 downto 104);
                             replace_side <= price_table(143 downto 136);
+                            replace_hash2 <= (price_table(79 downto 72) xor price_table(95 downto 88)) + (price_table(87 downto 80) xor price_table(103 downto 96));
                             
                             state <= READ_BUCKETS;
 
@@ -364,13 +393,35 @@ begin
                                 read_data <= ram(to_integer(price_table_address));
                                 state <= WRITE_PRICE_TABLE;
 
-                            elsif empty_slot_found = '1' then 
+                            elsif empty_slot_found = '1' and (frame_type_in = ADD or (frame_type_in = REPLACE and replace_run = '1')) then
 
+                                -- an empty slot only counts as "found" for operations that are
+                                -- allowed to insert (ADD, or the insert-phase of REPLACE).
+                                -- EXECCAN/DELETE and the REPLACE search-phase must actually
+                                -- locate the price, so an empty slot here does not stop the search.
                                 state <= WRITE_PRICE_TABLE;
 
                             else --need to add some sort of over flow incase the buckets are full
 
-                                
+                                if hash_attempts < MAX_HASH_ATTEMPTS then
+
+                                    hash_attempts <= hash_attempts + 1;
+
+                                    if replace_run = '0' then
+                                        original_hash <= original_hash2;
+                                    else
+                                        replace_hash <= replace_hash2;
+                                    end if;
+
+                                    state <= READ_BUCKETS;
+
+                                else
+
+                                    -- price could not be located (or no free slot found) after
+                                    -- exhausting all hash attempts; drop it
+                                    state <= IDLE;
+
+                                end if;
 
                             end if;
 
@@ -441,9 +492,7 @@ begin
                                         bbo_shares <= resize(original_shares, 48);
                                         bbo_side <= original_side;
                                         bbo_delete <= '0';
-                                    else 
-                                    
-                                    -- undcieded what to do with overflow yet
+
 
                                     end if;
 
@@ -516,10 +565,6 @@ begin
                                             data_written <= '1';
 
                                         end if;
-                                    
-                                    else 
-                                    
-                                    -- undcieded what to do with unfound replace/delete/cancel yet
 
                                     end if;
 
@@ -589,10 +634,8 @@ begin
                                             end if;
 
                                             replace_run <= '1';
+                                            hash_attempts <= (others => '0');
 
-                                        else 
-
-                                            -- has to exsits for a replace order, not sure what to do here
                                         end if;
                                         
                                     else
@@ -653,10 +696,6 @@ begin
                                             bbo_shares <= resize(replace_shares, 48);
                                             bbo_side <= replace_side;
                                             bbo_delete <= '0';
-                                        else 
-                                        
-                                        -- undcieded what to do with overflow yet
-                                        -- going to rehash to another bucket
 
                                         end if;
                                     
@@ -671,43 +710,69 @@ begin
 
                     rescan_out <= '1';
 
-                    rescan_buckets_data <= buckets(to_integer(rescan_buckets_counter));
+                    rescan_bucket_valid  <= '1';
+                    rescan_bucket_prices <= buckets(to_integer(rescan_buckets_counter));
 
                     for i in 0 to 7 loop
                         
-                        rescan_price_address((11 * i) + 10 downto 11 * i) <= (rescan_buckets_counter & "000") + i; 
+                        rescan_bucket_addrs((11 * i) + 10 downto 11 * i) <= (rescan_buckets_counter & "000") + i; 
 
                     end loop;
 
-                    rescan_buckets_counter <= rescan_buckets_counter + 1;
+                    if rescan_buckets_counter = 255 then 
 
-                    if rescan_buckets_counter >= 255 then 
+                        rescan_last_bucket <= '1';
+                        state <= RESCAN_WAIT;
 
-                        state <= RESCAN_SHARES;
-                    
+                    else
+
+                        rescan_buckets_counter <= rescan_buckets_counter + 1;
+                        state <= RESCAN_WAIT;
+
                     end if;
 
-                        
+                when RESCAN_WAIT =>
+
+                    rescan_bucket_valid <= '0';
+
+                    if top10_valid_in = '1' then
+
+                        rescan_top10_addr  <= top10_addr_in;
+                        rescan_price_count <= (others => '0');
+                        state <= RESCAN_SHARES;
+
+                    end if;
+
+                    if rescan_buckets_processed = '1' then 
+
+                        state <= RESCAN_PRICES;
+
+                    end if;
 
                 when RESCAN_SHARES =>  
 
-                        if buy_rescan_reg = '1' then 
+                        rescan_share_valid <= '1';
 
-                            rescan_share_out <= ram(to_integer(rescan_price_address(to_integer(11 * rescan_price_count) + 10 downto to_integer(11 * rescan_price_count))))(47 downto 0);
-                        elsif sell_rescan_reg = '1' then 
+                        if rescan_side_is_buy = '1' then 
 
-                            rescan_share_out <= ram(to_integer(rescan_price_address(to_integer(11 * rescan_price_count) + 10 downto to_integer(11 * rescan_price_count))))(95 downto 48);
+                            rescan_share_out <= ram(to_integer(rescan_top10_addr((11 * to_integer(rescan_price_count)) + 10 downto 11 * to_integer(rescan_price_count))))(95 downto 48);
+                        else 
+
+                            rescan_share_out <= ram(to_integer(rescan_top10_addr((11 * to_integer(rescan_price_count)) + 10 downto 11 * to_integer(rescan_price_count))))(47 downto 0);
 
                         end if;
 
-                        rescan_price_count <= rescan_price_count + 1;
+                        if rescan_price_count = 9 then 
 
-                        if rescan_price_count >= 9 then 
-
+                            rescan_share_last <= '1';
+                            rescan_out <= '0';
                             state <= IDLE;
                             
+                        else
+
+                            rescan_price_count <= rescan_price_count + 1;
+
                         end if;
-                        
 
                 end case;
 
@@ -719,8 +784,13 @@ begin
                     buckets(to_integer(buckets_waddr)) <= buckets_wdata;
                 end if;
 
-                buy_rescan_reg <= buy_rescan_in;
-                sell_rescan_reg <= sell_rescan_in;
+                if buy_rescan_in = '1' then
+                    buy_rescan_pending <= '1';
+                end if;
+
+                if sell_rescan_in = '1' then
+                    sell_rescan_pending <= '1';
+                end if;
 
             end if;
             

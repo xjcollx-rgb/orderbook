@@ -1,4 +1,3 @@
-
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -25,7 +24,19 @@ entity bbo is
         buy_rescan  : out std_logic;
         sell_rescan : out std_logic;
 
-        rescan_price_address : out unsigned(109 downto 0)
+        rescan_price_address    : out unsigned(109 downto 0);
+        rescan_prices_in        : in  unsigned(255 downto 0);
+        rescan_price_address_in : in  unsigned(87 downto 0);
+        rescan_shares_count_in  : in  unsigned(4 downto 0);
+        rescan_share_in         : in  unsigned(47 downto 0);
+
+        rescan_share_valid      : in  std_logic;
+        rescan_share_last       : in  std_logic;
+        rescan_bucket_valid     : in  std_logic;
+        rescan_last_bucket      : in  std_logic;
+        rescan_bucket_processed : out std_logic;
+        top_10_valid            : out std_logic
+
     );
 
 end bbo;
@@ -39,7 +50,20 @@ architecture rtl of bbo is
     type price_array is array (0 to 9) of unsigned(31 downto 0);
     type share_array is array (0 to 9) of unsigned(47 downto 0);
 
-    type state_t is (NORMAL, RESCAN_PRICES, RESCAN_SHARES);
+    ----------------------------------------------------------------
+    -- Top-level FSM.
+    --
+    -- RESCAN_PRICES_WAIT : waiting for price_table to present a
+    --                       valid bucket (rescan_bucket_valid = '1').
+    -- RESCAN_PRICES_FOLD : folding the 8 candidates from the current
+    --                       bucket into the scratch top-10, ONE
+    --                       candidate per clock (this is the fix for
+    --                       the 494-level combinational path -- each
+    --                       cycle now only does a single ~10-wide
+    --                       compare/shift insertion instead of 8
+    --                       chained insertions).
+    ----------------------------------------------------------------
+    type state_t is (NORMAL, RESCAN_PRICES_WAIT, RESCAN_PRICES_FOLD, RESCAN_SHARES);
     signal state : state_t := NORMAL;
 
     signal buy_prices : price_array;
@@ -54,16 +78,47 @@ architecture rtl of bbo is
     signal buy_reconstruction  : std_logic;
     signal sell_reconstruction : std_logic;
 
-    signal buy_lowest_delete  : unsigned(31 downto 0);
+    signal buy_lowest_delete   : unsigned(31 downto 0);
     signal sell_highest_delete : unsigned(31 downto 0);
 
     signal buy_table_filled  : std_logic;
     signal sell_table_filled : std_logic;
 
-    signal buy_rescan_reg : std_logic;
+    signal buy_rescan_reg  : std_logic;
     signal sell_rescan_reg : std_logic;
 
+    signal ordered_rescan_prices  : unsigned(255 downto 0);
+    signal ordered_rescan_address : unsigned(87 downto 0);
+
+    constant TOPN : integer := 10;
+    constant BKTN : integer := 8;
+
+    type rescan_price_array is array (0 to TOPN-1) of unsigned(31 downto 0);
+    type rescan_addr_array  is array (0 to TOPN-1) of unsigned(10 downto 0);
+
+    signal rescan_prices_work : rescan_price_array := (others => (others => '0'));
+    signal rescan_addrs_work  : rescan_addr_array  := (others => (others => '0'));
+    signal rescan_count_work  : unsigned(3 downto 0) := (others => '0');
+
+    signal rescan_is_buy    : std_logic := '0';
+    signal rescan_share_idx : unsigned(3 downto 0) := (others => '0');
+
+    ----------------------------------------------------------------
+    -- Latched copy of the current bucket's contents. Latched once
+    -- when rescan_bucket_valid = '1', then held stable across the
+    -- 8 fold cycles so the source data doesn't need to stay driven
+    -- by price_table for the whole fold.
+    ----------------------------------------------------------------
+    signal bucket_prices_latched : unsigned(255 downto 0) := (others => '0');
+    signal bucket_addrs_latched  : unsigned(87 downto 0)  := (others => '0');
+    signal bucket_last_latched   : std_logic := '0';
+
+    -- Which of the 8 candidates in the latched bucket is being
+    -- folded in this cycle.
+    signal bucket_slot_idx : unsigned(2 downto 0) := (others => '0');
+
 begin
+
 
     --------------------------------------------------------------------
     -- BBO outputs
@@ -78,13 +133,8 @@ begin
     best_sell_price  <= sell_prices(0);
     best_sell_shares <= sell_shares(0);
 
-
-    --------------------------------------------------------------------
-    -- Rescan request
-    --------------------------------------------------------------------
-
-    buy_rescan <= buy_reconstruction;
-    sell_rescan <= sell_reconstruction;
+    buy_rescan  <= buy_rescan_reg;
+    sell_rescan <= sell_rescan_reg;
 
 
     --------------------------------------------------------------------
@@ -97,6 +147,26 @@ begin
         variable sell_count_int : integer;
 
         variable found : boolean;
+
+        -- Single-candidate insertion scratch (used one candidate at a
+        -- time now, so these no longer need to carry state across 8
+        -- sequential folds within one cycle).
+        variable v_prices   : rescan_price_array;
+        variable v_addrs    : rescan_addr_array;
+        variable v_count    : integer range 0 to TOPN;
+        variable cand_price : unsigned(31 downto 0);
+        variable cand_addr  : unsigned(10 downto 0);
+
+        -- Parallel insertion-position computation. is_better(i) is
+        -- independent for every i (no dependency on other indices), so
+        -- all TOPN comparisons can be evaluated simultaneously instead
+        -- of threading a serial "inserted" flag through them. position
+        -- is simply the count of existing entries that outrank the
+        -- candidate, which is exactly its insertion index (the array
+        -- is always kept sorted, so the "better" entries always form a
+        -- contiguous prefix).
+        variable is_better  : std_logic_vector(0 to TOPN - 1);
+        variable position   : integer range 0 to TOPN;
 
     begin
 
@@ -113,36 +183,73 @@ begin
                 buy_table_filled  <= '0';
                 sell_table_filled <= '0';
 
+                buy_rescan_reg  <= '0';
+                sell_rescan_reg <= '0';
+
+                rescan_count_work <= (others => '0');
+                rescan_share_idx  <= (others => '0');
+
+                bucket_slot_idx      <= (others => '0');
+                bucket_prices_latched <= (others => '0');
+                bucket_addrs_latched  <= (others => '0');
+                bucket_last_latched   <= '0';
+
+                rescan_bucket_processed <= '0';
+                top_10_valid            <= '0';
+
                 buy_lowest_delete   <= (others => '0');
                 sell_highest_delete <= (others => '0');
 
-                for i in 0 to 9 loop
+                state <= NORMAL;
 
+                for i in 0 to 9 loop
                     buy_prices(i) <= (others => '0');
                     buy_shares(i) <= (others => '0');
-
                     sell_prices(i) <= (others => '0');
                     sell_shares(i) <= (others => '0');
-
+                    rescan_prices_work(i) <= (others => '0');
+                    rescan_addrs_work(i)  <= (others => '0');
                 end loop;
 
-                case state is 
+            else
+
+                -- Default: these are one-cycle pulses, deassert unless
+                -- explicitly re-asserted below.
+                rescan_bucket_processed <= '0';
+
+                case state is
 
 
-                when NORMAL => 
+                when NORMAL =>
 
-                    if buy_price_count = 1 and buy_table_filled = '1' then  
+                    if buy_price_count = 1 and buy_table_filled = '1' and buy_reconstruction = '1' and buy_rescan_reg = '0' then
 
-                        buy_rescan <= '1';
-                        buy_rescan_reg <= '1';
-                        state <= RESCAN_PRICES;
+                        buy_rescan_reg    <= '1';
+                        rescan_is_buy     <= '1';
+                        rescan_count_work <= (others => '0');
+
+                        for i in 0 to TOPN-1 loop
+                            rescan_prices_work(i) <= (others => '0');
+                            rescan_addrs_work(i)  <= (others => '0');
+                        end loop;
+
+                        state <= RESCAN_PRICES_WAIT;
+
                     end if;
 
-                    if sell_price_count = 1 and sell_table_filled = '1' then  
+                    if sell_price_count = 1 and sell_table_filled = '1' and sell_reconstruction = '1' and sell_rescan_reg = '0' then
 
-                        sell_rescan <= '1';
-                        sell_rescan_reg <= '1';
-                        state <= RESCAN_SHARES;
+                        sell_rescan_reg   <= '1';
+                        rescan_is_buy     <= '0';
+                        rescan_count_work <= (others => '0');
+
+                        for i in 0 to TOPN-1 loop
+                            rescan_prices_work(i) <= (others => '0');
+                            rescan_addrs_work(i)  <= (others => '0');
+                        end loop;
+
+                        state <= RESCAN_PRICES_WAIT;
+
                     end if;
 
 
@@ -184,7 +291,7 @@ begin
                                                 ------------------------------------------------
 
                                                 if buy_table_filled = '1' then
-                                                    buy_lowest_delete <= buy_prices(buy_count_int - 1);
+                                                    buy_lowest_delete  <= buy_prices(buy_count_int - 1);
                                                     buy_reconstruction <= '1';
                                                 end if;
 
@@ -219,15 +326,6 @@ begin
 
                                                 buy_price_count <= buy_price_count - 1;
 
-
-                                                ------------------------------------------------
-                                                -- Once the table is no longer full, the
-                                                -- filled flag is cleared.
-                                                ------------------------------------------------
-
-                                                if buy_count_int <= 10 then
-                                                    buy_table_filled <= '0';
-                                                end if;
 
                                                 exit;
 
@@ -300,14 +398,6 @@ begin
 
                                                 sell_price_count <= sell_price_count - 1;
 
-
-                                                ------------------------------------------------
-                                                -- No longer full.
-                                                ------------------------------------------------
-
-                                                if sell_count_int <= 10 then
-                                                    sell_table_filled <= '0';
-                                                end if;
 
                                                 exit;
 
@@ -504,6 +594,11 @@ begin
 
                                 end if;
 
+                                if buy_count_int >= 9 then
+                                    buy_table_filled   <= '1';
+                                    buy_reconstruction <= '0';
+                                end if;
+
 
                             ----------------------------------------------------------------
                             -- SELL
@@ -677,24 +772,231 @@ begin
 
                                 end if;
 
+                                if sell_count_int >= 9 then
+                                    sell_table_filled   <= '1';
+                                    sell_reconstruction <= '0';
+                                end if;
+
                             end if;
 
                         end if;
 
                     end if;
 
-                when RESCAN_PRICES =>
 
-                    
+                ----------------------------------------------------------------
+                -- RESCAN_PRICES_WAIT
+                --
+                -- Sit here until price_table presents a valid bucket. When it
+                -- does, latch the whole 256-bit / 88-bit bucket contents into
+                -- registers, reset the per-bucket slot counter to 0, and move
+                -- into the fold state. Latching once here (rather than reading
+                -- rescan_prices_in/rescan_price_address_in directly across all
+                -- 8 fold cycles) means price_table is free to change those
+                -- buses on the next cycle without corrupting an in-progress
+                -- fold, and it keeps each fold cycle's logic depth independent
+                -- of anything upstream.
+                ----------------------------------------------------------------
+
+                when RESCAN_PRICES_WAIT =>
+
+                    if rescan_bucket_valid = '1' then
+
+                        bucket_prices_latched <= rescan_prices_in;
+                        bucket_addrs_latched  <= rescan_price_address_in;
+                        bucket_last_latched   <= rescan_last_bucket;
+
+                        bucket_slot_idx <= (others => '0');
+
+                        state <= RESCAN_PRICES_FOLD;
+
+                    end if;
+
+
+                ----------------------------------------------------------------
+                -- RESCAN_PRICES_FOLD
+                --
+                -- Folds exactly ONE candidate (bucket_slot_idx) from the
+                -- latched bucket into the scratch top-10 per clock cycle.
+                -- This replaces the old single-cycle loop over all 8
+                -- candidates, which synthesized to ~494 logic levels because
+                -- 8 insertion passes were chained combinationally with no
+                -- register between them. Each cycle here does only one
+                -- ~10-wide compare/shift insertion, so the combinational
+                -- depth per cycle is roughly 1/8th of the old design.
+                ----------------------------------------------------------------
+
+                when RESCAN_PRICES_FOLD =>
+
+                    v_prices := rescan_prices_work;
+                    v_addrs  := rescan_addrs_work;
+                    v_count  := to_integer(rescan_count_work);
+
+                    cand_price := bucket_prices_latched(31 + to_integer(bucket_slot_idx)*32 downto to_integer(bucket_slot_idx)*32);
+                    cand_addr  := bucket_addrs_latched(10 + to_integer(bucket_slot_idx)*11 downto to_integer(bucket_slot_idx)*11);
+
+                    if cand_price /= to_unsigned(0, 32) then
+
+                        ------------------------------------------------------------
+                        -- Stage 1: TOPN independent comparisons, fully parallel.
+                        -- is_better(i) = "existing slot i is valid AND currently
+                        -- outranks the candidate". Only depends on v_prices(i),
+                        -- v_count and cand_price -- never on any other is_better(k).
+                        ------------------------------------------------------------
+
+                        for i in 0 to TOPN - 1 loop
+
+                            if (i < v_count) and (
+                                 (rescan_is_buy = '1' and v_prices(i) > cand_price) or
+                                 (rescan_is_buy = '0' and v_prices(i) < cand_price)) then
+                                is_better(i) := '1';
+                            else
+                                is_better(i) := '0';
+                            end if;
+
+                        end loop;
+
+                        ------------------------------------------------------------
+                        -- Stage 2: population count. Since the array is always
+                        -- kept sorted, the "better" entries always form a
+                        -- contiguous prefix (0..k-1), so this count IS the
+                        -- candidate's insertion index. Only small integer
+                        -- increments are chained here -- no 32-bit comparisons
+                        -- in this stage -- so this is cheap even if synthesis
+                        -- doesn't balance it into a tree.
+                        ------------------------------------------------------------
+
+                        position := 0;
+
+                        for i in 0 to TOPN - 1 loop
+                            if is_better(i) = '1' then
+                                position := position + 1;
+                            end if;
+                        end loop;
+
+                        ------------------------------------------------------------
+                        -- Stage 3: place the candidate and shift lower entries
+                        -- down. Descending order over j is required: it
+                        -- guarantees v_prices(j-1)/v_addrs(j-1) is still holding
+                        -- its ORIGINAL (pre-shift) value at the moment it's read,
+                        -- since higher indices are written first. The condition
+                        -- "j > position" is a single small-integer comparison,
+                        -- independent per j -- not a chain -- so this is a
+                        -- barrel-shift-style structure, not a priority chain.
+                        ------------------------------------------------------------
+
+                        if position < TOPN then
+
+                            for j in TOPN - 1 downto 0 loop
+                                if j > position then
+                                    v_prices(j) := v_prices(j - 1);
+                                    v_addrs(j)  := v_addrs(j - 1);
+                                end if;
+                            end loop;
+
+                            v_prices(position) := cand_price;
+                            v_addrs(position)  := cand_addr;
+
+                            if v_count < TOPN then
+                                v_count := v_count + 1;
+                            end if;
+
+                        end if;
+                        -- else: candidate ranks below all TOPN existing entries
+                        -- and the array is already full -- correctly discarded.
+
+                        rescan_prices_work <= v_prices;
+                        rescan_addrs_work  <= v_addrs;
+                        rescan_count_work  <= to_unsigned(v_count, 4);
+
+                    end if;
+
+                    ------------------------------------------------------------
+                    -- Advance to the next candidate in this bucket, or finish
+                    -- the bucket and either move to the next one or, if this
+                    -- was the last bucket, proceed to RESCAN_SHARES.
+                    ------------------------------------------------------------
+
+                    if bucket_slot_idx = to_unsigned(BKTN - 1, 3) then
+
+                        if bucket_last_latched = '1' then
+
+                            -- Note: this reads v_addrs (this cycle's freshly
+                            -- computed values, including the very last
+                            -- candidate just folded above) rather than the
+                            -- rescan_addrs_work signal, which would still hold
+                            -- the PREVIOUS cycle's value here.
+                            for i in 0 to TOPN - 1 loop
+                                rescan_price_address(10 + i*11 downto i*11) <= v_addrs(i);
+                            end loop;
+
+                            top_10_valid     <= '1';
+                            rescan_share_idx <= (others => '0');
+                            state            <= RESCAN_SHARES;
+
+                        else
+
+                            rescan_bucket_processed <= '1';
+                            state                   <= RESCAN_PRICES_WAIT;
+
+                        end if;
+
+                    else
+
+                        bucket_slot_idx <= bucket_slot_idx + 1;
+
+                    end if;
+
+
+                ----------------------------------------------------------------
+                -- RESCAN_SHARES
+                ----------------------------------------------------------------
 
                 when RESCAN_SHARES =>
+
+                    top_10_valid <= '0';
+
+                    if rescan_share_valid = '1' then
+
+                        if rescan_is_buy = '1' then
+                            buy_prices(to_integer(rescan_share_idx)) <= rescan_prices_work(to_integer(rescan_share_idx));
+                            buy_shares(to_integer(rescan_share_idx)) <= rescan_share_in;
+                        else
+                            sell_prices(to_integer(rescan_share_idx)) <= rescan_prices_work(to_integer(rescan_share_idx));
+                            sell_shares(to_integer(rescan_share_idx)) <= rescan_share_in;
+                        end if;
+
+                        if rescan_share_last = '1' then
+
+                            if rescan_is_buy = '1' then
+                                buy_price_count    <= rescan_count_work;
+                                buy_reconstruction <= '0';
+                                buy_rescan_reg     <= '0';
+                                if rescan_count_work = TOPN then
+                                    buy_table_filled <= '1';
+                                end if;
+                            else
+                                sell_price_count    <= rescan_count_work;
+                                sell_reconstruction <= '0';
+                                sell_rescan_reg     <= '0';
+                                if rescan_count_work = TOPN then
+                                    sell_table_filled <= '1';
+                                end if;
+                            end if;
+
+                            state <= NORMAL;
+
+                        else
+
+                            rescan_share_idx <= rescan_share_idx + 1;
+
+                        end if;
+
+                    end if;
 
                 end case;
 
             end if;
-
-
-            
 
         end if;
 
