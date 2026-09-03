@@ -142,7 +142,6 @@ architecture structural of orderbook_top is
             buy_rescan_in  : in std_logic;
             sell_rescan_in : in std_logic;
 
-            rescan_out : out std_logic;
 
             rescan_bucket_prices : out unsigned(255 downto 0);
             rescan_bucket_addrs  : out unsigned(87 downto 0);
@@ -154,8 +153,8 @@ architecture structural of orderbook_top is
             top10_valid_in : in std_logic;
 
             rescan_share_out   : out unsigned(47 downto 0);
-            rescan_share_valid : out std_logic;
-            rescan_share_last  : out std_logic
+            rescan_share_valid_out : out std_logic;
+            rescan_share_last_out  : out std_logic
         );
     end component;
 
@@ -374,8 +373,6 @@ begin
             buy_rescan_in  => buy_rescan_s,
             sell_rescan_in => sell_rescan_s,
 
-            rescan_out => open,
-
             rescan_bucket_prices => rescan_bucket_prices_s,
             rescan_bucket_addrs  => rescan_bucket_addrs_s,
             rescan_bucket_valid  => rescan_bucket_valid_s,
@@ -386,8 +383,8 @@ begin
             top10_valid_in => top10_valid_s,
 
             rescan_share_out   => rescan_share_s,
-            rescan_share_valid => rescan_share_valid_s,
-            rescan_share_last  => rescan_share_last_s
+            rescan_share_valid_out => rescan_share_valid_s,
+            rescan_share_last_out  => rescan_share_last_s
         );
 
     price_fifo_read <= bbo_data_written_s;

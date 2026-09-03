@@ -37,6 +37,9 @@ architecture rtl of price_fifo is
     type ram_t is array (0 to 511) of unsigned(145 downto 0);
     signal ram : ram_t := (others => (others => '0')); 
 
+    attribute ram_style : string;
+    attribute ram_style of ram : signal is "block";
+
     signal count : unsigned(11 downto 0) := (others => '0');
 
 begin

@@ -34,11 +34,11 @@ architecture rtl of ref_table is
     -- write-enable granularity and fall back to a synthetic per-bit
     -- write enable ([Synth 8-6841], "byte width (1) is not a multiple
     -- of 8/9") -- which in turn balloons BRAM usage far past what an
-    -- 8192 x 144 table should need. Keeping every write path uniform
+    -- 4096 x 144 table should need. Keeping every write path uniform
     -- (read-modify-write into ram_v, then one full assignment) avoids
     -- that entirely.
     ----------------------------------------------------------------
-    type ram_t is array (0 to 8191) of unsigned(143 downto 0);
+    type ram_t is array (0 to 4095) of unsigned(143 downto 0);
 
     signal ram : ram_t := (others => (others => '0'));
 
@@ -68,7 +68,7 @@ architecture rtl of ref_table is
     ----------------------------------------------------------------
     -- Address/search
     ----------------------------------------------------------------
-    signal address : unsigned(12 downto 0) := (others => '0');
+    signal address : unsigned(11 downto 0) := (others => '0');
 
     signal search_count : unsigned(13 downto 0) := (others => '0');
 
@@ -113,7 +113,7 @@ begin
                 frame_type_r <= (others => '0');
 
                 -- NOTE: ram is intentionally NOT cleared here.
-                -- Clearing an 8192-entry BRAM in a single cycle is
+                -- Clearing an 4095-entry BRAM in a single cycle is
                 -- not synthesizable as real reset logic; it would
                 -- force Vivado off the BRAM primitive. Power-up
                 -- content is all-zero, so every valid bit (136)
@@ -139,9 +139,9 @@ begin
                             ------------------------------------------------
                             -- Calculate initial hash address.
                             --
-                            -- 8192 entries = 13 address bits.
+                            -- 4096 entries = 13 address bits.
                             ------------------------------------------------
-                            address <= data(84 downto 72);
+                            address <= data(83 downto 72);
 
                             search_count <= (others => '0');
 
@@ -206,7 +206,7 @@ begin
                                     search_count <= (others => '0');
                                     state <= WRITE;
 
-                                elsif search_count >= 8191 then
+                                elsif search_count >= 4095 then
 
                                     -- Table full - drop.
                                     search_count <= (others => '0');
@@ -214,7 +214,7 @@ begin
 
                                 else
 
-                                    if address = 8191 then
+                                    if address = 4095 then
                                         address <= (others => '0');
                                     else
                                         address <= address + 1;
@@ -239,14 +239,14 @@ begin
                                     search_count <= (others => '0');
                                     state <= WRITE;
 
-                                elsif search_count >= 8191 then
+                                elsif search_count >= 4095 then
 
                                     search_count <= (others => '0');
                                     state <= IDLE;
 
                                 else
 
-                                    if address = 8191 then
+                                    if address = 4095 then
                                         address <= (others => '0');
                                     else
                                         address <= address + 1;
