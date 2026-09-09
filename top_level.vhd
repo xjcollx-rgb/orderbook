@@ -34,6 +34,18 @@ end entity orderbook_top;
 
 architecture structural of orderbook_top is
 
+    signal clk_150MHz : std_logic;
+    signal clk_locked : std_logic;
+    
+    component clk_wiz_0 is
+    port (
+        clk_out1 : out std_logic;
+        reset    : in  std_logic;
+        locked   : out std_logic;
+        clk_in1  : in  std_logic
+    );
+    end component;
+
     component byte_counter is
         port(
             clk              : in  std_logic;
@@ -46,6 +58,8 @@ architecture structural of orderbook_top is
             previous_success : in  std_logic
         );
     end component;
+    
+    
 
     component type_processor is
         port (
@@ -187,7 +201,6 @@ architecture structural of orderbook_top is
             rescan_price_address    : out unsigned(109 downto 0);
             rescan_prices_in        : in  unsigned(255 downto 0);
             rescan_price_address_in : in  unsigned(87 downto 0);
-            rescan_shares_count_in  : in  unsigned(4 downto 0);
             rescan_share_in         : in  unsigned(47 downto 0);
 
             rescan_share_valid      : in  std_logic;
@@ -267,13 +280,21 @@ architecture structural of orderbook_top is
 
 begin
 
+        u_clk_wiz : clk_wiz_0
+        port map (
+            clk_in1  => clk,
+            clk_out1 => clk_150MHz,
+            reset    => rst,
+            locked   => clk_locked
+        );
+
     ------------------------------------------------------------------
     -- Stage 1: type_processor / byte_counter feedback pair
     ------------------------------------------------------------------
     u_type_processor : type_processor
         port map (
             data                 => data_in,
-            clk                  => clk,
+            clk                  => clk_150MHz,
             rst                  => rst,
             frame                => tp_frame,
             byte_count           => bc_byte_count,
@@ -287,7 +308,7 @@ begin
 
     u_byte_counter : byte_counter
         port map (
-            clk              => clk,
+            clk              => clk_150MHz,
             rst              => rst,
             success          => tp_success,
             previous_offset  => tp_previous_offset,
@@ -309,7 +330,7 @@ begin
             DEPTH      => 2048
         )
         port map (
-            clk        => clk,
+            clk        => clk_150MHz,
             rst        => rst,
             din        => fifo_din_s,
             dout       => fifo_dout_s,
@@ -324,7 +345,7 @@ begin
     ------------------------------------------------------------------
     u_ref_table : ref_table
         port map (
-            clk          => clk,
+            clk          => clk_150MHz,
             rst          => rst,
             data         => fifo_dout_s(199 downto 0),
             empty_in     => fifo_empty_s,
@@ -335,7 +356,7 @@ begin
 
     u_price_fifo : price_fifo
         port map (
-            clk        => clk,
+            clk        => clk_150MHz,
             rst        => rst,
             din        => price_fifo_din,
             dout       => price_fifo_dout,
@@ -356,7 +377,7 @@ begin
     ------------------------------------------------------------------
     u_price_table : price_table
         port map (
-            clk          => clk,
+            clk          => clk_150MHz,
             rst          => rst,
 
             price_table   => price_table_data_s,
@@ -394,7 +415,7 @@ begin
     ------------------------------------------------------------------
     u_bbo : bbo
         port map (
-            clk => clk,
+            clk => clk_150MHz,
             rst => rst,
 
             price_in  => bbo_price_s,
@@ -417,12 +438,6 @@ begin
             rescan_prices_in        => rescan_bucket_prices_s,
             rescan_price_address_in => rescan_bucket_addrs_s,
 
-            -- Dead port carried over from an earlier interface revision:
-            -- bbo tracks its own share-stream index internally
-            -- (rescan_share_idx) rather than relying on an externally
-            -- supplied count, and price_table has no matching output for
-            -- this signal. Tied off rather than left dangling.
-            rescan_shares_count_in => (others => '0'),
 
             rescan_share_in => rescan_share_s,
 

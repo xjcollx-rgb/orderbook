@@ -27,7 +27,6 @@ entity bbo is
         rescan_price_address    : out unsigned(109 downto 0);
         rescan_prices_in        : in  unsigned(255 downto 0);
         rescan_price_address_in : in  unsigned(87 downto 0);
-        rescan_shares_count_in  : in  unsigned(4 downto 0);
         rescan_share_in         : in  unsigned(47 downto 0);
 
         rescan_share_valid      : in  std_logic;

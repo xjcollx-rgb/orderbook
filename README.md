@@ -50,10 +50,10 @@ The input is streamed as 64-bit words. The current design assumes valid market d
 
 The reference table maintains the state of individual orders.
 
-Each order is stored using a **144-bit entry**, with an 8192-entry table:
+Each order is stored using a **144-bit entry**, with an 4096-entry table:
 
 ```text
-8192 × 144 bits
+4096 × 144 bits
 ```
 
 The order reference number is hashed to an initial table location. **Linear probing** is then used to resolve collisions by searching subsequent entries until the required order is found or an empty location is reached.
@@ -121,19 +121,15 @@ The main storage structures are implemented using FPGA block RAM:
 
 | Structure       | Dimensions | Purpose                           |
 | --------------- | ---------: | --------------------------------- |
-| Reference Table | 8192 × 144 | Individual order state            |
+| Reference Table | 4096 × 144 | Individual order state            |
 | Price Table     |  2048 × 96 | Aggregated shares at price levels |
 | FIFOs           | BRAM-based | Pipeline buffering                |
 
 The current synthesis uses:
 
 ```text
-48 / 50 BRAMs
+43 / 50 BRAMs
 ```
-
-or approximately **96% of the available block RAM** on the target device.
-
-LUTS and DSP slices yet to be fully determined.
 
 ## Target Hardware
 
@@ -153,7 +149,7 @@ Clock period:    6.67 ns
 The current critical path is approximately:
 
 ```text
-9.2 ns
+10.2 ns
 ```
 
 The primary timing bottleneck is currently associated with a **32-bit subtraction operation** used when modifying order quantities during operations such as cancellation, execution, or deletion.
