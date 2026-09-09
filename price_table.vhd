@@ -715,9 +715,10 @@ begin
 
                                     end if;
 
-                                
+                                    when others => null;
 
-                        end case;
+                        
+                                    end case;
 
                 when RESCAN_PRICES => 
 

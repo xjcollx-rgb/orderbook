@@ -334,9 +334,12 @@ begin
 
                                 end if;
 
+                               
                                 ram(to_integer(address)) <= ram_v;
 
-                                price_table(71 downto 0) <= data(71 downto 0);
+                                price_table(71 downto 64) <= read_data(71 downto 64); -- original side (preserved)
+                                price_table(63 downto 32) <= data(63 downto 32);       -- shares being cancelled/executed
+                                price_table(31 downto 0)  <= read_data(31 downto 0);   -- original price (preserved)
                                 price_table(145 downto 144) <= "01";
 
                                 data_written <= '1';
@@ -357,19 +360,14 @@ begin
 
                                 replace_data := ram_v(71 downto 0);
 
-
-                                ------------------------------------------------
-                                -- New reference number.
-                                ------------------------------------------------
+                                
                                 ram_v(135 downto 72) :=
                                     data(199 downto 136);
 
-
-                                ------------------------------------------------
-                                -- New price/shares information. and side
-                                ------------------------------------------------
-                                ram_v(71 downto 0) :=
-                                    data(71 downto 0);
+                                ram_v(71 downto 64) :=
+                                    read_data(71 downto 64);   -- preserve original side
+                                ram_v(63 downto 0) :=
+                                    data(63 downto 0);          -- new shares + new price
 
 
                                 ------------------------------------------------
